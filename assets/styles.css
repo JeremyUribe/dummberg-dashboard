@@ -1,0 +1,111 @@
+/* ==============================
+   Base
+============================== */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #f8fafc; /* igual al dashboard */
+    color: #0f172a;
+}
+
+/* ==============================
+   Layout
+============================== */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+}
+
+/* ==============================
+   Títulos
+============================== */
+.title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+}
+
+.subtitle {
+    font-size: 14px;
+    color: #475569;
+    margin-bottom: 28px;
+}
+
+/* ==============================
+   Cards / Pickers
+============================== */
+.picker {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #334155;
+}
+
+/* ==============================
+   Dropdowns (Dash)
+============================== */
+.Select-control {
+    border-radius: 10px !important;
+    border: 1px solid #e2e8f0 !important;
+    min-height: 38px;
+}
+
+.Select-placeholder {
+    color: #94a3b8 !important;
+}
+
+.Select-menu-outer {
+    border-radius: 10px !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+/* ==============================
+   Gráficos
+============================== */
+.graph {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 12px;
+    margin-bottom: 24px;
+    border: 1px solid #e2e8f0;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+/* Eliminar fondo gris de Plotly */
+.graph .js-plotly-plot {
+    background: transparent !important;
+}
+
+/* ==============================
+   Responsive
+============================== */
+@media (max-width: 768px) {
+    .container {
+        padding: 20px 16px 48px;
+    }
+
+    .title {
+        font-size: 22px;
+    }
+}
+

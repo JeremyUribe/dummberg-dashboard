@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dummberg | Curvas de Tasas</title>
+
+    <link rel="stylesheet" href="/static/styles.css">
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+
+<body>
+<div class="container">
+
+    <header>
+        <h1>Dummberg</h1>
+        <p class="subtitle">Yield Curves & Spread Analytics</p>
+    </header>
+
+    <!-- Selectores -->
+    <section class="controls">
+        <div>
+            <label>Fecha 1</label>
+            <select id="fecha1"></select>
+        </div>
+
+        <div>
+            <label>Fecha 2</label>
+            <select id="fecha2"></select>
+        </div>
+
+        <button onclick="cargarCurvas()">Actualizar</button>
+    </section>
+
+    <!-- Curva -->
+    <section class="chart">
+        <h2>Curva de Tasas</h2>
+        <div id="curveChart"></div>
+    </section>
+
+    <!-- Spread -->
+    <section class="chart">
+        <h2>Spread entre Curvas</h2>
+        <div id="spreadChart"></div>
+    </section>
+
+</div>
+
+<script>
+async function cargarFechas() {
+    const r = await fetch("/fechas");
+    const fechas = await r.json();
+
+    const f1 = document.getElementById("fecha1");
+    const f2 = document.getElementById("fecha2");
+
+    fechas.reverse().forEach(f => {
+        f1.add(new Option(f, f));
+        f2.add(new Option(f, f));
+    });
+
+    f1.selectedIndex = 0;
+    f2.selectedIndex = 1;
+}
+
+async function cargarCurvas() {
+    const fecha1 = fecha1El.value;
+    const fecha2 = fecha2El.value;
+
+    const c1 = await fetch(`/curva?fecha=${fecha1}`).then(r => r.json());
+    const c2 = await fetch(`/curva?fecha=${fecha2}`).then(r => r.json());
+
+    // Curvas
+    const traceInterp1 = {
+        x: c1.x,
+        y: c1.tasas_interp,
+        mode: "lines",
+        name: fecha1,
+        line: {width: 3}
+    };
+
+    const traceReal1 = {
+        x: c1.x_real,
+        y: c1.tasas_real,
+        mode: "markers",
+        name: fecha1 + " (real)",
+        marker: {size: 6}
+    };
+
+    const traceInterp2 = {
+        x: c2.x,
+        y: c2.tasas_interp,
+        mode: "lines",
+        name: fecha2,
+        line: {width: 3, dash: "dash"}
+    };
+
+    Plotly.newPlot("curveChart",
+        [traceInterp1, traceReal1, traceInterp2],
+        layoutBase("Tasa (%)")
+    );
+
+    // Spread
+    const spread = await fetch(`/spread?fecha1=${fecha1}&fecha2=${fecha2}`)
+        .then(r => r.json());
+
+    Plotly.newPlot("spreadChart",
+        [{
+            x: spread.x,
+            y: spread.spread,
+            mode: "lines",
+            name: "Spread",
+            line: {width: 3}
+        }],
+        layoutBase("bps")
+    );
+}
+
+function layoutBase(yLabel) {
+    return {
+        paper_bgcolor: "#0e1117",
+        plot_bgcolor: "#0e1117",
+        font: {color: "#c9d1d9"},
+        xaxis: {
+            title: "Plazo (años)",
+            showgrid: false
+        },
+        yaxis: {
+            title: yLabel,
+            showgrid: true,
+            gridcolor: "#21262d"
+        },
+        legend: {
+            orientation: "h",
+            y: -0.25
+        },
+        margin: {t: 20}
+    };
+}
+
+const fecha1El = document.getElementById("fecha1");
+const fecha2El = document.getElementById("fecha2");
+
+cargarFechas().then(cargarCurvas);
+</script>
+
+</body>
+</html>
+
