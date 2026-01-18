@@ -6,7 +6,7 @@ from dash.dependencies import Input, Output
 import plotly.graph_objects as go
 
 # --- Cargar data ---
-df = pd.read_pickle(r"C:\Users\jerja\OneDrive\Escritorio\SBS_Vector\vector_precios_historico.pkl")
+df = pd.read_pickle(r"C:\Ideas Tontas\Dummberg\data\vector_precios_historico.pkl")
 
 df = df[df['isin'] != 'PEP01000C4R4']
 df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True)
