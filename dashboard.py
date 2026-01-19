@@ -156,6 +156,8 @@ def update_historical(isin):
     return fig
 
 
+import os
 
+port = int(os.environ.get("PORT", 10000))  # usa el puerto de Render, default 10000 local
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run_server(debug=True, host="0.0.0.0", port=port)
