@@ -25,7 +25,7 @@ fechas_unicas = sorted(df_curve['fecha'].dt.date.unique())
 app.layout = html.Div(
     className="container",
     children=[
-        html.H1("Curvas Soberanas SBS", className="title"),
+        html.H1("Bondora", className="title"),
         html.P(
             "Visualización de curvas de tasas, variación diaria y evolución histórica de TIR y Spread.",
             className="subtitle"
@@ -71,6 +71,7 @@ app.layout = html.Div(
                 'color': '#888888'
             }
         )
+        
     ]
 )
 
