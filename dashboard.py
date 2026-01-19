@@ -1,9 +1,9 @@
-
 import pandas as pd
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import plotly.graph_objects as go
+import os
 
 # --- Cargar data ---
 df = pd.read_pickle("vector_precios_historico.pkl")
@@ -17,7 +17,7 @@ df_curve = df_curve.sort_values('duración')
 
 # --- App Dash ---
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
-app.title = "Curvas Soberanas SBS"
+app.title = "Bondora"
 
 # Crear lista de fechas únicas para selección
 fechas_unicas = sorted(df_curve['fecha'].dt.date.unique())
@@ -55,7 +55,33 @@ app.layout = html.Div(
                 )
             ], className="picker"),
             dcc.Graph(id="graph-historical", className="graph")
-        ])
+        ]),
+
+        # --- Footer ---
+        html.Div(
+            className="footer",
+            children=[
+                html.Div([
+                    html.Img(
+                        src="/assets/f1_logo.png",
+                        style={'height':'20px', 'verticalAlign':'middle', 'marginRight':'8px'}
+                    ),
+                    html.Span(
+                        "Created By: Sergio",
+                        style={'color':'#888', 'fontSize':'12px'}
+                    )
+                ], style={'display':'flex', 'alignItems':'center'})
+            ],
+            style={
+                'position':'fixed',
+                'bottom':'10px',
+                'left':'10px',
+                'right':'10px',
+                'textAlign':'left',
+                'backgroundColor':'transparent',
+                'zIndex':'999'
+            }
+        )
     ]
 )
 
@@ -70,11 +96,9 @@ def update_curve(fechas_seleccionadas):
         return go.Figure(), go.Figure()
 
     fechas_dt = pd.to_datetime(fechas_seleccionadas)
-
-    # Filtrar solo fechas seleccionadas
     df_sel = df_curve[df_curve['fecha'].isin(fechas_dt)]
 
-    # --- Curva TIR vs Duración ---
+    # Curva TIR vs Duración
     fig_curve = go.Figure()
     for fecha in sorted(df_sel['fecha'].unique()):
         df_f = df_sel[df_sel['fecha'] == fecha]
@@ -94,7 +118,7 @@ def update_curve(fechas_seleccionadas):
         font=dict(family="Inter, Helvetica, sans-serif", size=12)
     )
 
-    # --- Variación diaria en puntos básicos ---
+    # Variación diaria en puntos básicos
     df_var = df_sel.copy()
     df_var = df_var.sort_values(['isin', 'fecha'])
     df_var['var_pb'] = df_var.groupby('isin')['tir %'].diff() * 100
@@ -156,8 +180,8 @@ def update_historical(isin):
     return fig
 
 
-import os
-
+# --- Run Server ---
 port = int(os.environ.get("PORT", 10000))  # usa el puerto de Render, default 10000 local
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=port)
+
