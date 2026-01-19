@@ -26,7 +26,10 @@ app.layout = html.Div(
     className="container",
     children=[
         html.H1("Curvas Soberanas SBS", className="title"),
-        html.P("Visualización de curvas de tasas, variación diaria y evolución histórica de TIR y Spread.", className="subtitle"),
+        html.P(
+            "Visualización de curvas de tasas, variación diaria y evolución histórica de TIR y Spread.",
+            className="subtitle"
+        ),
 
         # Selector de fechas exactas (multi)
         html.Div([
@@ -57,29 +60,15 @@ app.layout = html.Div(
             dcc.Graph(id="graph-historical", className="graph")
         ]),
 
-        # --- Footer ---
+        # Footer con creador e icono de fórmula 1
         html.Div(
-            className="footer",
-            children=[
-                html.Div([
-                    html.Img(
-                        src="/assets/f1_logo.png",
-                        style={'height':'20px', 'verticalAlign':'middle', 'marginRight':'8px'}
-                    ),
-                    html.Span(
-                        "Created By: Sergio",
-                        style={'color':'#888', 'fontSize':'12px'}
-                    )
-                ], style={'display':'flex', 'alignItems':'center'})
-            ],
+            "Created By: Sergio 🚗💨",
             style={
-                'position':'fixed',
-                'bottom':'10px',
-                'left':'10px',
-                'right':'10px',
-                'textAlign':'left',
-                'backgroundColor':'transparent',
-                'zIndex':'999'
+                'position': 'fixed',
+                'bottom': '5px',
+                'left': '10px',
+                'font-size': '12px',
+                'color': '#888888'
             }
         )
     ]
@@ -96,9 +85,11 @@ def update_curve(fechas_seleccionadas):
         return go.Figure(), go.Figure()
 
     fechas_dt = pd.to_datetime(fechas_seleccionadas)
+
+    # Filtrar solo fechas seleccionadas
     df_sel = df_curve[df_curve['fecha'].isin(fechas_dt)]
 
-    # Curva TIR vs Duración
+    # --- Curva TIR vs Duración ---
     fig_curve = go.Figure()
     for fecha in sorted(df_sel['fecha'].unique()):
         df_f = df_sel[df_sel['fecha'] == fecha]
@@ -118,7 +109,7 @@ def update_curve(fechas_seleccionadas):
         font=dict(family="Inter, Helvetica, sans-serif", size=12)
     )
 
-    # Variación diaria en puntos básicos
+    # --- Variación diaria en puntos básicos (gráfico de área) ---
     df_var = df_sel.copy()
     df_var = df_var.sort_values(['isin', 'fecha'])
     df_var['var_pb'] = df_var.groupby('isin')['tir %'].diff() * 100
@@ -126,17 +117,21 @@ def update_curve(fechas_seleccionadas):
     fig_var = go.Figure()
     for fecha in sorted(df_var['fecha'].unique()):
         df_f = df_var[df_var['fecha'] == fecha]
-        fig_var.add_trace(go.Bar(
+        fig_var.add_trace(go.Scatter(
             x=df_f['duración'],
             y=df_f['var_pb'],
-            name=fecha.strftime('%d/%m/%Y')
+            mode='lines',
+            fill='tozeroy',  # gráfico de área
+            line=dict(shape='spline', width=2),
+            name=fecha.strftime('%d/%m/%Y'),
+            opacity=0.6
         ))
+
     fig_var.update_layout(
         title=f"Variación diaria de TIR (pb)",
         template="plotly_white",
         xaxis_title="Duración (años)",
         yaxis_title="Variación (pb)",
-        barmode='group',
         font=dict(family="Inter, Helvetica, sans-serif", size=12)
     )
 
@@ -179,9 +174,8 @@ def update_historical(isin):
     )
     return fig
 
-
-# --- Run Server ---
-port = int(os.environ.get("PORT", 10000))  # usa el puerto de Render, default 10000 local
+# --- Run server ---
+port = int(os.environ.get("PORT", 10000))  # Render asigna el puerto
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=port)
 
