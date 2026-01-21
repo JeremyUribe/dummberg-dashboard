@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import os
 
 # --- Cargar data ---
-df = pd.read_pickle("vector_precios_unido.pkl")
+df = pd.read_parquet("vector_precios_unido.parquet")
 
 df = df[df['isin'] != 'PEP01000C4R4']
 df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True)
