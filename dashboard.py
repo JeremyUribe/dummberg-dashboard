@@ -6,12 +6,12 @@ from dash.dependencies import Input, Output
 import plotly.graph_objects as go
 import os
 
-<<<<<<< HEAD
+
 # --- Cargar data ---
 df = pd.read_pickle("vector_precios_2015_mas.pkl")
-=======
+
 DB_PATH = "curvas.db"
->>>>>>> bf10aff ("Primer commit Dummberg")
+
 
 def query(sql, params=None):
     con = sqlite3.connect(DB_PATH)
