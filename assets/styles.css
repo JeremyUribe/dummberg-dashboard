@@ -1,161 +1,157 @@
-/* ==============================
-   Base
-============================== */
-* {
-    box-sizing: border-box;
-    transition: all 0.2s ease-in-out;
+@layer properties {
+    *,:before,:after,::backdrop {
+        --tw-translate-x: 0;
+        --tw-translate-y: 0;
+        --tw-translate-z: 0;
+        --tw-rotate: 0deg;
+        --tw-shadow: 0 0 #0000;
+        --tw-ring-color: #0000;
+        --tw-ring-offset-color: #fff;
+        --tw-border-style: solid;
+        --tw-duration: .3s;
+        --tw-ease: cubic-bezier(.4,0,.2,1);
+        --tw-radius-card: .75rem;
+    }
 }
 
-body {
-    margin: 0;
-    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    background-color: #f4f5f7; /* suave y neutro */
-    color: #1e293b; /* texto más suave para lectura */
-    line-height: 1.6;
+@layer theme {
+    :root,:host {
+        --font-sans: "Inter",sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+
+        --color-bg: #f9fafb;
+        --color-card: #ffffff;
+        --color-text: #1e293b;
+        --color-border: #e2e8f0;
+        --color-primary: #3b82f6;
+        --color-primary-dark: #2563eb;
+        --color-hover-shadow: rgba(15,23,42,0.1);
+
+        --spacing: .25rem;
+        --radius-md: .5rem;
+        --radius-lg: .75rem;
+
+        --text-sm: .875rem;
+        --text-base: 1rem;
+        --text-lg: 1.125rem;
+        --text-xl: 1.25rem;
+    }
 }
 
-/* ==============================
-   Layout
-============================== */
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 40px 24px 64px;
-}
-
-/* ==============================
-   Títulos
-============================== */
-.title {
-    font-size: 30px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin-bottom: 8px;
-    color: #0f172a;
-}
-
-.subtitle {
-    font-size: 15px;
-    color: #64748b;
-    margin-bottom: 32px;
-}
-
-/* ==============================
-   Cards / Pickers
-============================== */
-.picker {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 24px;
-    box-shadow:
-        0 2px 6px rgba(15, 23, 42, 0.06),
-        0 6px 20px rgba(15, 23, 42, 0.08);
-    transition: all 0.2s ease;
-}
-
-.picker:hover {
-    transform: translateY(-2px);
-    box-shadow:
-        0 4px 12px rgba(15, 23, 42, 0.08),
-        0 8px 24px rgba(15, 23, 42, 0.1);
-}
-
-.label {
-    display: block;
-    font-size: 13px;
-    font-weight: 500;
-    margin-bottom: 10px;
-    color: #334155;
-}
-
-/* ==============================
-   Dropdowns (Dash)
-============================== */
-.Select-control {
-    border-radius: 12px !important;
-    border: 1px solid #cbd5e1 !important;
-    min-height: 40px;
-    padding: 0 12px;
-    background: #ffffff;
-    box-shadow: 0 1px 3px rgba(15,23,42,0.05);
-}
-
-.Select-control:hover {
-    border-color: #94a3b8 !important;
-}
-
-.Select-placeholder {
-    color: #94a3b8 !important;
-}
-
-.Select-menu-outer {
-    border-radius: 12px !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 4px 16px rgba(15,23,42,0.1);
-}
-
-/* ==============================
-   Gráficos
-============================== */
-.graph {
-    background: #ffffff;
-    border-radius: 20px;
-    padding: 16px;
-    margin-bottom: 32px;
-    border: 1px solid #e2e8f0;
-    box-shadow:
-        0 2px 6px rgba(15, 23, 42, 0.04),
-        0 8px 24px rgba(15, 23, 42, 0.08);
-    transition: all 0.2s ease;
-}
-
-.graph:hover {
-    transform: translateY(-2px);
-    box-shadow:
-        0 4px 12px rgba(15, 23, 42, 0.06),
-        0 12px 32px rgba(15, 23, 42, 0.1);
-}
-
-/* Eliminar fondo gris de Plotly */
-.graph .js-plotly-plot {
-    background: transparent !important;
-}
-
-/* ==============================
-   Botones y Hover
-============================== */
-button {
-    background-color: #3b82f6;
-    color: #ffffff;
-    font-weight: 500;
-    border: none;
-    border-radius: 12px;
-    padding: 10px 16px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-button:hover {
-    background-color: #2563eb;
-    transform: translateY(-1px);
-}
-
-/* ==============================
-   Responsive
-============================== */
-@media (max-width: 768px) {
-    .container {
-        padding: 24px 16px 48px;
+@layer base {
+    *,*:before,*:after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        border: 0 solid;
     }
 
-    .title {
-        font-size: 24px;
+    body {
+        font-family: var(--font-sans);
+        background-color: var(--color-bg);
+        color: var(--color-text);
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.5;
     }
-    
-    .subtitle {
-        font-size: 14px;
+
+    h1,h2,h3,h4,h5,h6 {
+        font-weight: 600;
+        line-height: 1.25;
     }
+
+    img,video,canvas,svg {
+        max-width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    button,input,select,textarea {
+        font-family: inherit;
+        font-size: inherit;
+        color: inherit;
+        background-color: transparent;
+        border-radius: 0;
+    }
+}
+
+@layer components {
+    .card {
+        background-color: var(--color-card);
+        border-radius: var(--tw-radius-card);
+        padding: calc(var(--spacing)*8);
+        box-shadow: 0 4px 12px var(--color-hover-shadow);
+        border: 1px solid var(--color-border);
+        transition: transform var(--tw-duration) var(--tw-ease), box-shadow var(--tw-duration) var(--tw-ease);
+    }
+
+    .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 20px var(--color-hover-shadow);
+    }
+
+    .button-primary {
+        background-color: var(--color-primary);
+        color: #fff;
+        padding: calc(var(--spacing)*4) calc(var(--spacing)*8);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: background-color var(--tw-duration) var(--tw-ease), transform var(--tw-duration) var(--tw-ease);
+    }
+
+    .button-primary:hover {
+        background-color: var(--color-primary-dark);
+        transform: translateY(-2px);
+    }
+
+    .graph {
+        background-color: var(--color-card);
+        border-radius: var(--radius-lg);
+        padding: calc(var(--spacing)*6);
+        box-shadow: 0 6px 16px var(--color-hover-shadow);
+        transition: box-shadow var(--tw-duration) var(--tw-ease), transform var(--tw-duration) var(--tw-ease);
+    }
+
+    .graph:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px var(--color-hover-shadow);
+    }
+
+    .picker {
+        background-color: var(--color-card);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: calc(var(--spacing)*3);
+    }
+}
+
+@layer utilities {
+    .flex { display: flex; }
+    .grid { display: grid; }
+    .block { display: block; }
+    .inline-flex { display: inline-flex; }
+    .hidden { display: none; }
+
+    .items-center { align-items: center; }
+    .justify-center { justify-content: center; }
+    .gap-4 { gap: calc(var(--spacing)*4); }
+    .gap-6 { gap: calc(var(--spacing)*6); }
+
+    .w-full { width: 100%; }
+    .h-64 { height: 16rem; }
+    .h-auto { height: auto; }
+
+    .rounded { border-radius: var(--radius-md); }
+    .rounded-lg { border-radius: var(--radius-lg); }
+
+    .overflow-hidden { overflow: hidden; }
+    .overflow-auto { overflow: auto; }
+
+    .text-sm { font-size: var(--text-sm); }
+    .text-base { font-size: var(--text-base); }
+    .text-lg { font-size: var(--text-lg); }
+    .text-xl { font-size: var(--text-xl); }
+
+    .cursor-pointer { cursor: pointer; }
+    .transition { transition: all var(--tw-duration) var(--tw-ease); }
 }
 
