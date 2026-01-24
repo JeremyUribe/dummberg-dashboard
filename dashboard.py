@@ -5,7 +5,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import plotly.graph_objects as go
 import numpy as np
-
+import os
 # --- Cargar data ---
 try:
     df = pd.read_pickle("vector_precios_unido_pen.pkl")
@@ -231,7 +231,7 @@ def update_hist(busqueda, metric):
     fig.update_layout(get_light_layout(f"HISTORICAL: {busqueda}", "DATE", metric))
     return fig
 # --- Run server ---
-port = int(os.environ.get("PORT", 10000))
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=port)
 
