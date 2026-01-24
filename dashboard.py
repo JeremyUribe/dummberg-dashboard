@@ -5,7 +5,6 @@ from dash.dependencies import Input, Output
 import plotly.graph_objects as go
 import numpy as np
 import os
-<<<<<<< HEAD
 
 # --- Cargar data ---
 df = pd.read_pickle("vector_precios_unido_pen.pkl")
@@ -77,7 +76,7 @@ app.layout = html.Div(
     ]
 )
 
-=======
+
 # --- Cargar data ---
 try:
     df = pd.read_pickle(r"C:\Ideas Tontas\Dummberg\vector_precios_unido_pen.pkl")
@@ -199,13 +198,13 @@ def layout_light(title, xtitle, ytitle):
         hovermode="x unified"
     )
 
->>>>>>> 862bad5 ("Primer commit Dummberg")
+
 # --- Callbacks ---
 @app.callback(
     [Output("graph-curve", "figure"), Output("graph-spread", "figure")],
     [Input("datepicker-fecha1", "date"), Input("radio-xaxis", "value")]
 )
-<<<<<<< HEAD
+
 def update_curve(fechas_seleccionadas):
     if not fechas_seleccionadas:
         return go.Figure(), go.Figure()
@@ -226,7 +225,7 @@ def update_curve(fechas_seleccionadas):
             line=dict(shape='spline', width=2),
             marker=dict(size=5),
             name=fecha.strftime('%d/%m/%Y')
-=======
+
 def update_curves(fecha_sel, xaxis):
     if not fecha_sel or df.empty: return go.Figure(), go.Figure()
     fecha_dt = pd.to_datetime(fecha_sel)
@@ -253,7 +252,7 @@ def update_curves(fecha_sel, xaxis):
             x=x, y=y, mode='markers', marker=dict(size=8, color=color),
             text=nem, hovertemplate="%{text}<br>X: %{x}<br>TIR: %{y:.2f}%<extra></extra>",
             showlegend=False
->>>>>>> 862bad5 ("Primer commit Dummberg")
+
         ))
     fig_curve.update_layout(
         title=f"Curva TIR vs Duración",
@@ -263,7 +262,7 @@ def update_curves(fecha_sel, xaxis):
         font=dict(family="Inter, Helvetica, sans-serif", size=12)
     )
 
-<<<<<<< HEAD
+
     # --- Variación diaria en puntos básicos (gráfico de área) ---
     df_var = df_sel.copy()
     df_var = df_var.sort_values(['isin', 'fecha'])
@@ -293,7 +292,7 @@ def update_curves(fecha_sel, xaxis):
     return fig_curve, fig_var
 
 
-=======
+
     fig_curve.update_layout(layout_light("Curva de TIR", xaxis.capitalize(), "TIR (%)"))
 
     # Spread solo si hay más de 1 fecha para interpolar
@@ -316,25 +315,25 @@ def update_curves(fecha_sel, xaxis):
 
     return fig_curve, fig_spread
 
->>>>>>> 862bad5 ("Primer commit Dummberg")
+
 @app.callback(
     Output("graph-historical", "figure"),
     [Input("dropdown-busqueda", "value"), Input("radio-hist-tipo", "value")]
 )
-<<<<<<< HEAD
+
 def update_historical(isin):
     df_isin = df[df['isin'] == isin].sort_values('fecha')
-=======
+
 def update_hist(busqueda, tipo):
     if not busqueda or df.empty: return go.Figure()
     isin = busqueda.split(" | ")[0]
     df_i = df[df['isin'] == isin].sort_values('fecha')
 
->>>>>>> 862bad5 ("Primer commit Dummberg")
+
     fig = go.Figure()
     # TIR
     fig.add_trace(go.Scatter(
-<<<<<<< HEAD
+
         x=df_isin['fecha'], y=df_isin['tir %'],
         mode='lines+markers',
         line=dict(shape='spline', color='#1f77b4', width=2),
@@ -360,7 +359,7 @@ def update_hist(busqueda, tipo):
         legend=dict(x=0.01, y=0.99),
         font=dict(family="Inter, Helvetica, sans-serif", size=12)
     )
-=======
+
         x=df_i['fecha'], y=df_i[tipo], mode='lines+markers',
         line=dict(width=2, color='#3b82f6' if tipo=='tir %' else '#ef4444'),
         marker=dict(size=6),
@@ -368,14 +367,12 @@ def update_hist(busqueda, tipo):
     ))
 
     fig.update_layout(layout_light(f"Histórico: {busqueda}", "Fecha", tipo))
->>>>>>> 862bad5 ("Primer commit Dummberg")
+
     return fig
 
 # --- Run server ---
 port = int(os.environ.get("PORT", 10000))  # Render asigna el puerto
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=port)
-<<<<<<< HEAD
 
-=======
->>>>>>> 862bad5 ("Primer commit Dummberg")
+
