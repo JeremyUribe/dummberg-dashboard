@@ -232,8 +232,8 @@ def update_hist(busqueda, metric):
     return fig
 # --- Run server ---
 
+port = int(os.environ.get("PORT", 10000))  # Render asigna el puerto
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=port)
-
 
 
