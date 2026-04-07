@@ -1,3 +1,6 @@
+
+Copiar
+
 import pandas as pd
 import dash
 from dash import dcc, html
@@ -72,9 +75,9 @@ app.index_string = '''
         ::-webkit-scrollbar { width:5px; height:5px; }
         ::-webkit-scrollbar-track { background:var(--bg); }
         ::-webkit-scrollbar-thumb { background:var(--bhi); border-radius:3px; }
-
+ 
         .shell { display:flex; flex-direction:column; min-height:100vh; }
-
+ 
         .topbar {
             display:flex; align-items:center; justify-content:space-between;
             padding:0 32px; height:52px; background:#fff;
@@ -85,24 +88,24 @@ app.index_string = '''
         .sep   { color:var(--bhi); }
         .sub   { font-family:var(--mono); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
         .badge { font-family:var(--mono); font-size:10px; padding:3px 10px; border-radius:20px; background:#eff6ff; color:var(--blue); border:1px solid #bfdbfe; text-transform:uppercase; letter-spacing:1px; }
-
+ 
         .main  { flex:1; padding:22px 32px; max-width:1500px; margin:0 auto; width:100%; }
-
+ 
         .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:10px; margin-bottom:16px; }
         .sc    { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:12px 15px; box-shadow:var(--sh); transition:box-shadow .15s,border-color .15s; }
         .sc:hover { box-shadow:0 4px 12px rgba(15,23,42,.1); border-color:var(--bhi); }
         .sl    { font-family:var(--mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
         .sv    { font-family:var(--mono); font-size:18px; font-weight:600; line-height:1; }
         .sv.b  { color:var(--blue); } .sv.g { color:var(--green); } .sv.a { color:var(--amber); }
-
+ 
         .sec   { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); margin-bottom:14px; overflow:hidden; box-shadow:var(--sh); }
         .shead { display:flex; align-items:center; gap:8px; padding:11px 18px; border-bottom:1px solid var(--bdr); background:#fafbfc; }
         .dot   { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
         .stit  { font-family:var(--mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
         .sbody { padding:15px 18px; }
-
+ 
         .clabel { font-family:var(--mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; display:block; }
-
+ 
         /* Interpolation */
         .ig { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:end; }
         .ii {
@@ -129,12 +132,12 @@ app.index_string = '''
         .rbox.err .rlabel { color:var(--red); }
         .rbox.err .rval   { color:var(--red); font-size:13px; font-weight:400; }
         .rmeta { font-family:var(--mono); font-size:11px; color:var(--muted); margin-left:auto; text-align:right; line-height:1.6; }
-
+ 
         .footer { padding:10px 32px; border-top:1px solid var(--bdr); background:#fff; }
         .fi  { display:flex; justify-content:space-between; align-items:center; }
         .ft  { font-family:var(--mono); font-size:11px; color:var(--muted); }
         .ftag{ font-family:var(--mono); font-size:10px; padding:2px 7px; border-radius:3px; background:var(--bdr); color:var(--muted); }
-
+ 
         ._dash-loading-callback { opacity:0 !important; }
         .dash-spinner { display:none !important; }
     </style>
@@ -342,21 +345,31 @@ def update_curves(selected_dates, xaxis):
 
     fig_curve.update_layout(**white_layout(xtitle, "TIR (%)"))
 
-    # Spread
+    # Spread — usar barras en lugar de fill para evitar el bug de renderizado infinito
     fig_spread = go.Figure()
     if len(curvas_interp) >= 2:
         f1, f2 = sorted(curvas_interp.keys())[0], sorted(curvas_interp.keys())[-1]
-        x1,y1 = curvas_interp[f1]; x2,y2 = curvas_interp[f2]
-        xc = np.linspace(max(x1.min(),x2.min()), min(x1.max(),x2.max()), 200)
-        sp = (np.interp(xc,x2,y2) - np.interp(xc,x1,y1)) * 100
-        pos = sp >= 0
-        fig_spread.add_trace(go.Scatter(x=xc, y=np.where(pos,sp,0), mode='lines', fill='tozeroy',
-            line=dict(width=2,color='#059669'), fillcolor='rgba(5,150,105,0.1)', name=f"+ {f2:%d/%m/%Y}"))
-        fig_spread.add_trace(go.Scatter(x=xc, y=np.where(~pos,sp,0), mode='lines', fill='tozeroy',
-            line=dict(width=2,color='#e11d48'), fillcolor='rgba(225,29,72,0.08)', name=f"− {f1:%d/%m/%Y}"))
+        x1, y1 = curvas_interp[f1]
+        x2, y2 = curvas_interp[f2]
+        # Reducir a ~60 puntos para el gráfico de barras (más legible y sin bugs de fill)
+        xc = np.linspace(max(x1.min(), x2.min()), min(x1.max(), x2.max()), 60)
+        sp = (np.interp(xc, x2, y2) - np.interp(xc, x1, y1)) * 100
+
+        colors = ['#059669' if v >= 0 else '#e11d48' for v in sp]
+
+        fig_spread.add_trace(go.Bar(
+            x=xc,
+            y=sp,
+            marker_color=colors,
+            marker_line_width=0,
+            name=f"{f2:%d/%m/%Y} − {f1:%d/%m/%Y}",
+            hovertemplate="%{x:.2f} yr → <b>%{y:.1f} bps</b><extra></extra>",
+        ))
         fig_spread.add_hline(y=0, line_color='#cbd5e1', line_width=1)
 
-    fig_spread.update_layout(**white_layout(xtitle, "bps"))
+    sp_layout = white_layout(xtitle, "bps")
+    sp_layout['bargap'] = 0.05
+    fig_spread.update_layout(**sp_layout)
     return fig_curve, fig_spread
 
 
