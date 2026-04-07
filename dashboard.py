@@ -229,16 +229,16 @@ app.layout = html.Div(className="main", children=[
         ])
     ]),
 
-    # Curva + Spread
-    html.Div(style={'display':'grid','gridTemplateColumns':'3fr 2fr','gap':'14px','marginBottom':'14px'}, children=[
-        html.Div(className="sec", children=[
-            html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#2563eb'}), html.Span("Curva de rendimientos", className="stit")]),
-            dcc.Graph(id="graph-curve", config={'displayModeBar':True,'modeBarButtonsToRemove':['select2d','lasso2d','autoScale2d'],'displaylogo':False}),
-        ]),
-        html.Div(className="sec", children=[
-            html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#059669'}), html.Span("Spread interpolado (bps)", className="stit")]),
-            dcc.Graph(id="graph-spread", config={'displayModeBar':False}),
-        ]),
+    # Curva
+    html.Div(className="sec", style={'marginBottom':'14px'}, children=[
+        html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#2563eb'}), html.Span("Curva de rendimientos", className="stit")]),
+        dcc.Graph(id="graph-curve", config={'displayModeBar':True,'modeBarButtonsToRemove':['select2d','lasso2d','autoScale2d'],'displaylogo':False}),
+    ]),
+
+    # Spread debajo
+    html.Div(className="sec", style={'marginBottom':'14px'}, children=[
+        html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#059669'}), html.Span("Spread interpolado (bps)", className="stit")]),
+        dcc.Graph(id="graph-spread", config={'displayModeBar':False}),
     ]),
 
     # Panel de yield interpolada
@@ -364,8 +364,8 @@ def update_curves(selected_dates, xaxis):
         ))
         fig_spread.add_hline(y=0, line_color='#cbd5e1', line_width=1)
 
-    sp_layout = white_layout(xtitle, "bps")
-    sp_layout['bargap'] = 0.05
+    sp_layout = white_layout(xtitle, "bps", height=220)
+    sp_layout['bargap'] = 0.15
     fig_spread.update_layout(**sp_layout)
     return fig_curve, fig_spread
 
