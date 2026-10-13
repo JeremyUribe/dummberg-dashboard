@@ -25,7 +25,7 @@ import plotly.graph_objects as go
 BASE_DIR = Path(__file__).resolve().parent
 SBS_FILE = Path(os.getenv("SBS_DATA_FILE", BASE_DIR / "vector_precios_unido_pen.pkl"))
 FRED_CACHE_FILE = Path(os.getenv("FRED_CACHE_FILE", BASE_DIR / "us_treasury_fred.pkl"))
-FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
+FRED_API_KEY = os.getenv("099f42ea3623e3295b6401aa6d4476b7", "").strip()
 FRED_SERIES = {
     "US 1Y": "DGS1", "US 2Y": "DGS2", "US 3Y": "DGS3", "US 5Y": "DGS5",
     "US 7Y": "DGS7", "US 10Y": "DGS10", "US 20Y": "DGS20", "US 30Y": "DGS30",
