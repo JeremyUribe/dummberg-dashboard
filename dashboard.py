@@ -1,446 +1,450 @@
+"""Bondora — Fixed Income Research
+
+Datos locales SBS: vector_precios_unido_pen.pkl
+Datos US Treasury: FRED API (variable de entorno FRED_API_KEY)
+
+Dependencias: pip install dash pandas numpy plotly requests
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from datetime import datetime, timedelta
+
+import numpy as np
 import pandas as pd
+import requests
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
-import numpy as np
-import os
 
-# ─── Cargar data ─────────────────────────────────────────────────────────────
-try:
-    df = pd.read_pickle("vector_precios_unido_pen.pkl")
-except Exception:
-    df = pd.DataFrame()
+# -----------------------------------------------------------------------------
+# Configuración
+# -----------------------------------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent
+SBS_FILE = Path(os.getenv("SBS_DATA_FILE", BASE_DIR / "vector_precios_unido_pen.pkl"))
+FRED_CACHE_FILE = Path(os.getenv("FRED_CACHE_FILE", BASE_DIR / "us_treasury_fred.pkl"))
+FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
+FRED_SERIES = {
+    "US 1Y": "DGS1", "US 2Y": "DGS2", "US 3Y": "DGS3", "US 5Y": "DGS5",
+    "US 7Y": "DGS7", "US 10Y": "DGS10", "US 20Y": "DGS20", "US 30Y": "DGS30",
+}
+TENOR_YEARS = {"US 1Y": 1, "US 2Y": 2, "US 3Y": 3, "US 5Y": 5,
+               "US 7Y": 7, "US 10Y": 10, "US 20Y": 20, "US 30Y": 30}
 
-if not df.empty:
-    df = df[df['isin'] != 'PEP01000C4R4'].copy()
-    df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True)
-    df['f. vencimiento'] = pd.to_datetime(df['f. vencimiento'], dayfirst=True)
-    df['maturity'] = (df['f. vencimiento'] - df['fecha']).dt.days / 365
-    df_curve = df[(df['emisor'] == 'GOB.CENTRAL') & (df['moneda'] == 'PEN')].copy()
-    fechas_unicas = sorted(df_curve['fecha'].dt.date.unique())
-    df['busqueda'] = df['isin'] + " | " + df['nemónico']
-    busqueda_options = [{'label': b, 'value': b} for b in sorted(df['busqueda'].unique())]
-    fecha_options   = [{'label': f.strftime('%d/%m/%Y'), 'value': str(f)} for f in fechas_unicas]
-    default_fecha   = [str(fechas_unicas[-1])] if fechas_unicas else []
-    default_busqueda = df['busqueda'].iloc[0] if not df.empty else None
-else:
-    df_curve = pd.DataFrame()
-    fechas_unicas = []
-    busqueda_options = []
-    fecha_options = []
-    default_fecha = []
-    default_busqueda = None
+# Visual identity: editorial research, not generic KPI cards.
+INK = "#202923"
+MUTED = "#777B73"
+GRID = "#E8E7E0"
+PAPER = "#F5F4EF"
+WHITE = "#FFFFFF"
+NAVY = "#243B53"
+RUST = "#B65F43"
+TEAL = "#487A72"
+GOLD = "#A88645"
+PALETTE = [NAVY, RUST, TEAL, GOLD, "#71658A", "#6E7D87"]
 
-PALETTE = ['#2563eb', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2']
+# -----------------------------------------------------------------------------
+# Carga SBS
+# -----------------------------------------------------------------------------
+def load_sbs():
+    try:
+        raw = pd.read_pickle(SBS_FILE)
+    except Exception as exc:
+        print(f"No se pudo cargar el archivo SBS {SBS_FILE}: {exc}")
+        return pd.DataFrame(), pd.DataFrame(), [], [], [], None
 
-# ─── App ─────────────────────────────────────────────────────────────────────
-external_stylesheets = [
-    "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap"
-]
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-app.title = "Bondora"
+    if raw.empty:
+        return raw, pd.DataFrame(), [], [], [], None
 
-app.index_string = '''
-<!DOCTYPE html>
-<html>
-<head>
-    {%metas%}
-    <title>{%title%}</title>
-    {%css%}
-    <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --bg:      #f8fafc;
-            --card:    #ffffff;
-            --hover:   #f1f5f9;
-            --bdr:     #e2e8f0;
-            --bhi:     #cbd5e1;
-            --tx:      #0f172a;
-            --muted:   #64748b;
-            --blue:    #2563eb;
-            --green:   #059669;
-            --red:     #e11d48;
-            --amber:   #d97706;
-            --violet:  #7c3aed;
-            --r:       8px;
-            --mono:    'IBM Plex Mono', monospace;
-            --sans:    'IBM Plex Sans', sans-serif;
-            --sh:      0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.04);
-        }
-        html,body { background:var(--bg); color:var(--tx); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
-        ::-webkit-scrollbar { width:5px; height:5px; }
-        ::-webkit-scrollbar-track { background:var(--bg); }
-        ::-webkit-scrollbar-thumb { background:var(--bhi); border-radius:3px; }
- 
-        .shell { display:flex; flex-direction:column; min-height:100vh; }
- 
-        .topbar {
-            display:flex; align-items:center; justify-content:space-between;
-            padding:0 32px; height:52px; background:#fff;
-            border-bottom:1px solid var(--bdr); position:sticky; top:0; z-index:100;
-        }
-        .brand { display:flex; align-items:baseline; gap:10px; }
-        .logo  { font-family:var(--mono); font-size:17px; font-weight:600; color:var(--tx); }
-        .sep   { color:var(--bhi); }
-        .sub   { font-family:var(--mono); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
-        .badge { font-family:var(--mono); font-size:10px; padding:3px 10px; border-radius:20px; background:#eff6ff; color:var(--blue); border:1px solid #bfdbfe; text-transform:uppercase; letter-spacing:1px; }
- 
-        .main  { flex:1; padding:22px 32px; max-width:1500px; margin:0 auto; width:100%; }
- 
-        .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:10px; margin-bottom:16px; }
-        .sc    { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:12px 15px; box-shadow:var(--sh); transition:box-shadow .15s,border-color .15s; }
-        .sc:hover { box-shadow:0 4px 12px rgba(15,23,42,.1); border-color:var(--bhi); }
-        .sl    { font-family:var(--mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
-        .sv    { font-family:var(--mono); font-size:18px; font-weight:600; line-height:1; }
-        .sv.b  { color:var(--blue); } .sv.g { color:var(--green); } .sv.a { color:var(--amber); }
- 
-        .sec   { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); margin-bottom:14px; overflow:hidden; box-shadow:var(--sh); }
-        .shead { display:flex; align-items:center; gap:8px; padding:11px 18px; border-bottom:1px solid var(--bdr); background:#fafbfc; }
-        .dot   { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
-        .stit  { font-family:var(--mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
-        .sbody { padding:15px 18px; }
- 
-        .clabel { font-family:var(--mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; display:block; }
- 
-        /* Interpolation */
-        .ig { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:end; }
-        .ii {
-            font-family:var(--mono); font-size:13px; padding:7px 10px;
-            border:1px solid var(--bdr); border-radius:5px; color:var(--tx); background:#fff;
-            width:100%; outline:none; transition:border-color .15s, box-shadow .15s;
-        }
-        .ii:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.1); }
-        .ib {
-            font-family:var(--mono); font-size:12px; font-weight:500;
-            padding:7px 18px; border-radius:5px; border:none;
-            background:var(--blue); color:#fff; cursor:pointer; white-space:nowrap;
-            transition:background .15s, transform .1s;
-        }
-        .ib:hover  { background:#1d4ed8; }
-        .ib:active { transform:scale(0.97); }
-        .rbox  { margin-top:14px; padding:14px 18px; border-radius:6px; display:flex; align-items:center; gap:20px; }
-        .rbox.ok  { background:#eff6ff; border:1px solid #bfdbfe; }
-        .rbox.err { background:#fff1f2; border:1px solid #fecdd3; }
-        .rlabel { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
-        .rval   { font-family:var(--mono); font-size:24px; font-weight:600; line-height:1; }
-        .rbox.ok  .rlabel { color:var(--blue); }
-        .rbox.ok  .rval   { color:var(--blue); }
-        .rbox.err .rlabel { color:var(--red); }
-        .rbox.err .rval   { color:var(--red); font-size:13px; font-weight:400; }
-        .rmeta { font-family:var(--mono); font-size:11px; color:var(--muted); margin-left:auto; text-align:right; line-height:1.6; }
- 
-        .footer { padding:10px 32px; border-top:1px solid var(--bdr); background:#fff; }
-        .fi  { display:flex; justify-content:space-between; align-items:center; }
-        .ft  { font-family:var(--mono); font-size:11px; color:var(--muted); }
-        .ftag{ font-family:var(--mono); font-size:10px; padding:2px 7px; border-radius:3px; background:var(--bdr); color:var(--muted); }
- 
-        ._dash-loading-callback { opacity:0 !important; }
-        .dash-spinner { display:none !important; }
-    </style>
-</head>
-<body>
-<div class="shell">
-  <nav class="topbar">
-    <div class="brand">
-      <span class="logo">bondora</span><span class="sep"> / </span><span class="sub">SBS Sovereign Curves</span>
-    </div>
-    <span class="badge">PEN · GOB. CENTRAL</span>
-  </nav>
-  {%app_entry%}
-  <footer class="footer"><div class="fi"><span class="ft">Jeremy · Fixed Income Analytics</span><span class="ftag">v3.0</span></div></footer>
-</div>
-<footer>{%config%}{%scripts%}{%renderer%}</footer>
-</body>
-</html>
-'''
+    required = {"isin", "fecha", "f. vencimiento", "emisor", "moneda", "tir %", "nemónico"}
+    missing = required.difference(raw.columns)
+    if missing:
+        print(f"El archivo SBS no contiene columnas requeridas: {sorted(missing)}")
+        return pd.DataFrame(), pd.DataFrame(), [], [], [], None
 
-# ─── White Plotly layout ──────────────────────────────────────────────────────
-def white_layout(xtitle, ytitle, height=340, year_ticks=True):
-    xax = dict(
-        title=dict(text=xtitle, font=dict(size=11, color='#64748b')),
-        gridcolor='#f1f5f9', zeroline=False,
-        showline=True, linecolor='#e2e8f0', linewidth=1,
-        tickfont=dict(size=10, color='#94a3b8'),
-        title_standoff=8,
-    )
-    if year_ticks:
-        xax.update(dtick=1, tick0=0, ticksuffix=" yr")
+    df = raw.copy()
+    df = df[df["isin"].astype(str) != "PEP01000C4R4"].copy()
+    df["fecha"] = pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
+    df["f. vencimiento"] = pd.to_datetime(df["f. vencimiento"], dayfirst=True, errors="coerce")
+    df["tir %"] = pd.to_numeric(df["tir %"], errors="coerce")
+    if "p. limpio (%)" in df.columns:
+        df["p. limpio (%)"] = pd.to_numeric(df["p. limpio (%)"], errors="coerce")
+    else:
+        df["p. limpio (%)"] = np.nan
+    df = df.dropna(subset=["fecha", "f. vencimiento"])
+    df["maturity"] = (df["f. vencimiento"] - df["fecha"]).dt.days / 365.25
+    df["busqueda"] = df["isin"].astype(str) + " | " + df["nemónico"].astype(str)
+    curve = df[(df["emisor"] == "GOB.CENTRAL") & (df["moneda"] == "PEN")].copy()
+    dates = sorted(curve["fecha"].dt.normalize().dropna().unique())
+    date_options = [{"label": pd.Timestamp(d).strftime("%d/%m/%Y"), "value": pd.Timestamp(d).strftime("%Y-%m-%d")} for d in dates]
+    search_options = [{"label": x, "value": x} for x in sorted(df["busqueda"].dropna().unique())]
+    default_dates = [pd.Timestamp(dates[-1]).strftime("%Y-%m-%d")] if dates else []
+    default_search = search_options[0]["value"] if search_options else None
+    return df, curve, date_options, search_options, default_dates, default_search
 
+
+df, df_curve, fecha_options, busqueda_options, default_fecha, default_busqueda = load_sbs()
+
+# -----------------------------------------------------------------------------
+# FRED — descarga de series diarias de Treasury. Cache local si falla la API.
+# -----------------------------------------------------------------------------
+def load_fred_series(series_id: str, api_key: str, start_date: str = "1990-01-01") -> pd.DataFrame:
+    url = "https://api.stlouisfed.org/fred/series/observations"
+    params = {
+        "series_id": series_id,
+        "api_key": api_key,
+        "file_type": "json",
+        "observation_start": start_date,
+        "sort_order": "asc",
+    }
+    response = requests.get(url, params=params, timeout=25)
+    response.raise_for_status()
+    payload = response.json()
+    if "error_code" in payload:
+        raise RuntimeError(payload.get("error_message", "FRED API error"))
+    observations = payload.get("observations", [])
+    out = pd.DataFrame(observations, columns=["date", "value"])
+    if out.empty:
+        return pd.DataFrame(columns=["date", series_id])
+    out["date"] = pd.to_datetime(out["date"], errors="coerce")
+    out[series_id] = pd.to_numeric(out["value"].replace(".", np.nan), errors="coerce")
+    return out[["date", series_id]].dropna(subset=["date"])
+
+
+def load_treasury() -> tuple[pd.DataFrame, str]:
+    frames = []
+    api_errors = []
+    if FRED_API_KEY:
+        for label, series_id in FRED_SERIES.items():
+            try:
+                series_df = load_fred_series(series_id, FRED_API_KEY)
+                series_df = series_df.rename(columns={series_id: label})
+                frames.append(series_df)
+            except Exception as exc:
+                api_errors.append(f"{series_id}: {exc}")
+        if frames:
+            merged = frames[0]
+            for frame in frames[1:]:
+                merged = merged.merge(frame, on="date", how="outer")
+            merged = merged.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
+            try:
+                merged.to_pickle(FRED_CACHE_FILE)
+            except Exception as exc:
+                print(f"No se pudo guardar la caché FRED: {exc}")
+            status = f"FRED · actualización consultada {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            if api_errors:
+                status += f" · avisos en {len(api_errors)} serie(s); se conservaron las disponibles"
+            return merged, status
+
+    # Sin API key o si falla la descarga: usar caché anterior si existe.
+    try:
+        cached = pd.read_pickle(FRED_CACHE_FILE)
+        if not cached.empty and "date" in cached.columns:
+            cached["date"] = pd.to_datetime(cached["date"], errors="coerce")
+            for label in FRED_SERIES:
+                if label not in cached.columns:
+                    cached[label] = np.nan
+            return cached.sort_values("date").reset_index(drop=True), "FRED · datos de caché local"
+    except Exception as exc:
+        print(f"No se pudo cargar la caché FRED: {exc}")
+
+    if not FRED_API_KEY:
+        return pd.DataFrame(columns=["date", *FRED_SERIES]), "Configura FRED_API_KEY para descargar datos de FRED"
+    return pd.DataFrame(columns=["date", *FRED_SERIES]), "No se pudieron descargar los datos de FRED: " + "; ".join(api_errors[:2])
+
+
+df_treasury, fred_status = load_treasury()
+TREASURY_TENORS = list(FRED_SERIES.keys())
+if not df_treasury.empty:
+    for col in TREASURY_TENORS:
+        if col not in df_treasury.columns:
+            df_treasury[col] = np.nan
+        df_treasury[col] = pd.to_numeric(df_treasury[col], errors="coerce")
+    df_treasury["date"] = pd.to_datetime(df_treasury["date"], errors="coerce")
+    df_treasury = df_treasury.dropna(subset=["date"]).sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
+treasury_dates = df_treasury["date"].dt.strftime("%Y-%m-%d").tolist() if not df_treasury.empty else []
+treasury_date_options = [{"label": pd.to_datetime(d).strftime("%d/%m/%Y"), "value": d} for d in treasury_dates]
+treasury_default_date = [treasury_dates[-1]] if treasury_dates else []
+
+# -----------------------------------------------------------------------------
+# Helpers de diseño y gráficos
+# -----------------------------------------------------------------------------
+def section_label(number: str, label: str, right: str | None = None):
+    children = [html.Span(number, className="section-number"), html.Span(label, className="section-title")]
+    if right:
+        children.append(html.Span(right, className="section-meta"))
+    return html.Div(children, className="section-head")
+
+
+def plot_layout(x_title: str = "", y_title: str = "", height: int = 365, date_axis: bool = False):
+    xaxis = dict(title=dict(text=x_title, font=dict(size=11, color=MUTED)), showgrid=False,
+                 zeroline=False, showline=True, linecolor=GRID, linewidth=1,
+                 tickfont=dict(size=10, color=MUTED), ticks="outside", ticklen=4,
+                 tickcolor=GRID, automargin=True)
+    if date_axis:
+        xaxis["showgrid"] = False
     return dict(
-        template="plotly_white",
-        plot_bgcolor='#ffffff', paper_bgcolor='#ffffff',
-        font=dict(family="IBM Plex Mono, monospace", size=11, color='#475569'),
-        xaxis=xax,
-        yaxis=dict(
-            title=dict(text=ytitle, font=dict(size=11, color='#64748b')),
-            gridcolor='#f1f5f9', zeroline=False,
-            showline=True, linecolor='#e2e8f0', linewidth=1,
-            tickfont=dict(size=10, color='#94a3b8'),
-            title_standoff=8,
-        ),
-        margin=dict(l=56, r=20, t=16, b=48),
+        template="plotly_white", paper_bgcolor=WHITE, plot_bgcolor=WHITE,
+        font=dict(family="IBM Plex Sans, sans-serif", size=12, color=INK),
+        xaxis=xaxis,
+        yaxis=dict(title=dict(text=y_title, font=dict(size=11, color=MUTED)),
+                   showgrid=True, gridcolor=GRID, griddash="dot", zeroline=False,
+                   showline=False, tickfont=dict(size=10, color=MUTED), automargin=True),
+        margin=dict(l=54, r=24, t=28, b=48), height=height,
         hovermode="x unified",
-        hoverlabel=dict(bgcolor='#1e293b', bordercolor='#334155',
-                        font=dict(family='IBM Plex Mono', size=11, color='#f8fafc')),
-        legend=dict(bgcolor='rgba(255,255,255,0.92)', bordercolor='#e2e8f0', borderwidth=1,
-                    font=dict(family='IBM Plex Mono', size=10, color='#64748b'), x=0.01, y=0.99),
-        height=height,
+        hoverlabel=dict(bgcolor=INK, bordercolor=INK, font=dict(color=WHITE, family="IBM Plex Sans, sans-serif", size=12)),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+                    bgcolor="rgba(255,255,255,0)", font=dict(size=11, color=MUTED)),
     )
 
-# ─── Stats ────────────────────────────────────────────────────────────────────
-def build_stats():
+
+def empty_figure(message: str = "Selecciona datos para visualizar"):
+    fig = go.Figure()
+    fig.update_layout(**plot_layout(height=300), annotations=[dict(text=message, x=.5, y=.5,
+        xref="paper", yref="paper", showarrow=False, font=dict(size=13, color=MUTED))])
+    return fig
+
+
+def build_overview():
     if df_curve.empty:
-        return html.Div()
-    last = df_curve[df_curve['fecha'] == df_curve['fecha'].max()]
-    return html.Div(className="stats", children=[
-        html.Div(className="sc", children=[html.Div("Última fecha",   className="sl"), html.Div(last['fecha'].iloc[0].strftime('%d/%m/%Y'), className="sv b")]),
-        html.Div(className="sc", children=[html.Div("Bonos activos",  className="sl"), html.Div(str(len(last)), className="sv")]),
-        html.Div(className="sc", children=[html.Div("TIR mín.",       className="sl"), html.Div(f"{last['tir %'].min():.2f}%", className="sv g")]),
-        html.Div(className="sc", children=[html.Div("TIR máx.",       className="sl"), html.Div(f"{last['tir %'].max():.2f}%", className="sv a")]),
-        html.Div(className="sc", children=[html.Div("Fechas disp.",   className="sl"), html.Div(str(df_curve['fecha'].nunique()), className="sv")]),
+        return html.Div(className="overview-strip", children=[html.Div("SBS", className="overview-kicker"), html.Div("No se pudo cargar la base de datos local", className="overview-note")])
+    latest_date = df_curve["fecha"].max().normalize()
+    latest = df_curve[df_curve["fecha"].dt.normalize() == latest_date]
+    stats = [
+        ("OBSERVACIÓN MÁS RECIENTE", latest_date.strftime("%d %b %Y")),
+        ("BONOS EN CURVA", f"{len(latest):,}"),
+        ("TIR MÍNIMA", f"{latest['tir %'].min():.2f}%" if latest["tir %"].notna().any() else "—"),
+        ("TIR MÁXIMA", f"{latest['tir %'].max():.2f}%" if latest["tir %"].notna().any() else "—"),
+        ("FECHAS HISTÓRICAS", f"{df_curve['fecha'].dt.normalize().nunique():,}"),
+    ]
+    return html.Div(className="overview-strip", children=[
+        html.Div(className="overview-heading", children=[html.Div("MARKET SNAPSHOT", className="overview-kicker"), html.Div("Perú · Deuda soberana en PEN", className="overview-note")]),
+        *[html.Div(className="overview-stat", children=[html.Div(k, className="stat-label"), html.Div(v, className="stat-value")]) for k, v in stats]
     ])
 
-# ─── Layout ───────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# App / CSS
+# -----------------------------------------------------------------------------
+external_stylesheets = [
+    "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+]
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=False)
+app.title = "Bondora — Fixed Income Research"
+app.index_string = '''<!DOCTYPE html>
+<html><head>{%metas%}<title>{%title%}</title>{%css%}
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#F5F4EF;color:#202923;font-family:'IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased}
+:root{--paper:#F5F4EF;--white:#fff;--ink:#202923;--muted:#777B73;--line:#DCDCD3;--navy:#243B53;--rust:#B65F43;--teal:#487A72;--mono:'IBM Plex Mono',monospace}
+.shell{min-height:100vh;display:flex;flex-direction:column}.topbar{height:62px;background:#F5F4EF;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 clamp(18px,4vw,58px);position:sticky;top:0;z-index:100}
+.brand{display:flex;align-items:baseline;gap:14px}.brand-name{font-family:var(--mono);font-size:21px;font-weight:600;letter-spacing:-1.4px}.brand-divider{height:19px;border-left:1px solid #BDBFB6}.brand-sub{font-family:var(--mono);font-size:10px;letter-spacing:1.3px;color:var(--muted);text-transform:uppercase}.top-meta{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.7px}
+.main{width:100%;max-width:1540px;margin:0 auto;padding:32px clamp(18px,4vw,58px) 54px}.page-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:5px 0 24px;border-bottom:1px solid var(--line);margin-bottom:22px}.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:1.7px;color:var(--rust);text-transform:uppercase;margin-bottom:12px}.page-title{font-size:clamp(28px,3vw,42px);font-weight:500;letter-spacing:-1.7px;line-height:1.1;margin:0 0 9px}.page-description{font-size:13px;color:var(--muted);line-height:1.6;max-width:660px}.page-code{text-align:right;font-family:var(--mono);font-size:10px;line-height:1.9;color:var(--muted);white-space:nowrap}
+.overview-strip{display:flex;align-items:stretch;gap:0;background:#ECEBE4;border:1px solid var(--line);margin:0 0 28px;flex-wrap:wrap}.overview-heading{padding:17px 20px;min-width:205px;flex:1.25}.overview-kicker{font-family:var(--mono);font-size:10px;letter-spacing:1.2px;color:var(--muted);margin-bottom:7px}.overview-note{font-size:13px;color:var(--ink)}.overview-stat{padding:17px 19px;border-left:1px solid #D5D5CC;min-width:130px;flex:1}.stat-label{font-family:var(--mono);font-size:9px;letter-spacing:.6px;color:var(--muted);line-height:1.5;margin-bottom:7px}.stat-value{font-family:var(--mono);font-size:18px;font-weight:500;letter-spacing:-.6px;color:var(--ink);white-space:nowrap}
+.section{background:var(--white);border:1px solid var(--line);margin-bottom:22px}.section-head{min-height:47px;display:flex;align-items:center;gap:12px;padding:0 19px;border-bottom:1px solid #E9E8E1}.section-number{font-family:var(--mono);font-size:10px;color:var(--rust)}.section-title{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.1px;color:#4D554E}.section-meta{margin-left:auto;font-family:var(--mono);font-size:10px;color:#92958D}.section-body{padding:17px 19px}.control-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,260px);gap:20px;align-items:end}.control-grid.three{grid-template-columns:minmax(220px,1fr) minmax(170px,220px) minmax(150px,190px)}.field-label{font-family:var(--mono);font-size:10px;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:7px}.field-note{font-size:11px;color:#92958D;margin-top:6px;line-height:1.5}.radio-wrap label{display:inline-flex;align-items:center;margin:5px 16px 5px 0;font-size:12px;color:#4D554E;cursor:pointer}.radio-wrap input{accent-color:var(--navy);margin-right:6px}
+.dash-dropdown .Select-control,.dash-dropdown .Select__control{border-radius:0!important;border-color:var(--line)!important;box-shadow:none!important;font-family:'IBM Plex Sans',sans-serif!important;font-size:12px!important}.dash-dropdown .Select-control:hover{border-color:#A9ACA2!important}.dash-dropdown .Select-menu-outer{z-index:200!important}.result-box{display:flex;align-items:center;gap:20px;padding:15px 17px;margin-top:14px;border:1px solid #D8DFD9;background:#F5F7F3}.result-label{font-family:var(--mono);font-size:10px;letter-spacing:.7px;color:var(--teal);margin-bottom:5px}.result-value{font-family:var(--mono);font-size:25px;color:#315F56}.result-meta{margin-left:auto;text-align:right;color:var(--muted);font-family:var(--mono);font-size:10px;line-height:1.8}.error-box{border-color:#E8D4CC;background:#FBF4F1}.error-box .result-label,.error-box .result-value{color:var(--rust)}
+.action-button{font-family:var(--mono);font-size:11px;padding:10px 17px;border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer;transition:background .15s}.action-button:hover{background:#182B3C}.footer{border-top:1px solid var(--line);padding:15px clamp(18px,4vw,58px);display:flex;justify-content:space-between;gap:15px;color:var(--muted);font-family:var(--mono);font-size:10px}.footer span:last-child{text-align:right}.fred-status{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5}.source-link{color:var(--navy)}
+@media(max-width:800px){.page-intro{align-items:flex-start;flex-direction:column}.page-code{text-align:left}.overview-heading{min-width:100%;border-bottom:1px solid #D5D5CC}.overview-stat{min-width:33%;border-left:0;border-top:1px solid #D5D5CC}.overview-stat:nth-child(odd){border-left:1px solid #D5D5CC}.control-grid,.control-grid.three{grid-template-columns:1fr}.section-body{padding:13px}.section-head{padding:0 13px}.top-meta{display:none}.footer{flex-direction:column}.footer span:last-child{text-align:left}}
+._dash-loading{visibility:hidden}.dash-spinner{display:none!important}
+</style></head><body><div class="shell"><nav class="topbar"><div class="brand"><span class="brand-name">bondora</span><span class="brand-divider"></span><span class="brand-sub">Fixed Income Research</span></div><div class="top-meta">MARKET DATA / CURVE ANALYTICS</div></nav>{%app_entry%}<footer class="footer"><span>Bondora · Independent fixed-income analytics</span><span>SBS · Ministerio de Economía y Finanzas / FRED · Federal Reserve Bank of St. Louis</span></footer></div><footer>{%config%}{%scripts%}{%renderer%}</footer></body></html>'''
+
 app.layout = html.Div(className="main", children=[
-
-    build_stats(),
-
-    # Controles
-    html.Div(className="sec", children=[
-        html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#2563eb'}), html.Span("Configuración de curva", className="stit")]),
-        html.Div(className="sbody", children=[
-            html.Div(style={'display':'grid','gridTemplateColumns':'1fr 220px','gap':'16px','alignItems':'start'}, children=[
-                html.Div([
-                    html.Span("Seleccionar fechas", className="clabel"),
-                    dcc.Dropdown(id='dropdown-fechas', options=fecha_options, value=default_fecha, multi=True,
-                                 placeholder="Seleccionar fechas...", style={'fontFamily':'IBM Plex Mono','fontSize':'12px'})
-                ]),
-                html.Div([
-                    html.Span("Eje X", className="clabel"),
-                    dcc.RadioItems(
-                        id='radio-xaxis',
-                        options=[{'label':'  Duración','value':'duración'},{'label':'  Madurez','value':'maturity'}],
-                        value='duración',
-                        labelStyle={'display':'inline-block','marginRight':'18px','fontFamily':'IBM Plex Mono','fontSize':'12px','color':'#475569','cursor':'pointer'}
-                    )
-                ]),
-            ])
-        ])
+    html.Div(className="page-intro", children=[
+        html.Div(children=[html.Div("MARKETS / CURVES / HISTORICAL DATA", className="eyebrow"),
+            html.H1("Sovereign yield curves", className="page-title"),
+            html.Div("Análisis de rendimientos, spreads y series históricas para renta fija local e internacional.", className="page-description")]),
+        html.Div([html.Div("RESEARCH NOTE  /  01"), html.Div("PEN  ·  USD"), html.Div("DAILY OBSERVATIONS")], className="page-code")
     ]),
+    build_overview(),
 
-    # Curva
-    html.Div(className="sec", style={'marginBottom':'14px'}, children=[
-        html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#2563eb'}), html.Span("Curva de rendimientos", className="stit")]),
-        dcc.Graph(id="graph-curve", config={'displayModeBar':True,'modeBarButtonsToRemove':['select2d','lasso2d','autoScale2d'],'displaylogo':False}),
-    ]),
-
-    # Spread debajo
-    html.Div(className="sec", style={'marginBottom':'14px'}, children=[
-        html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#059669'}), html.Span("Spread interpolado (bps)", className="stit")]),
-        dcc.Graph(id="graph-spread", config={'displayModeBar':False}),
-    ]),
-
-    # Panel de yield interpolada
-    html.Div(className="sec", children=[
-        html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#7c3aed'}), html.Span("Consulta de yield interpolada", className="stit")]),
-        html.Div(className="sbody", children=[
-            html.Div(className="ig", children=[
-                html.Div([
-                    html.Span("Fecha de la curva", className="clabel"),
-                    dcc.Dropdown(id='interp-fecha', options=fecha_options,
-                                 value=str(fechas_unicas[-1]) if fechas_unicas else None,
-                                 placeholder="Seleccionar...", clearable=False,
-                                 style={'fontFamily':'IBM Plex Mono','fontSize':'12px'})
-                ]),
-                html.Div([
-                    html.Span("Eje X", className="clabel"),
-                    dcc.Dropdown(id='interp-xaxis',
-                                 options=[{'label':'Duración (años)','value':'duración'},
-                                          {'label':'Madurez (años)','value':'maturity'}],
-                                 value='duración', clearable=False,
-                                 style={'fontFamily':'IBM Plex Mono','fontSize':'12px'})
-                ]),
-                html.Div([
-                    html.Span("Valor en años", className="clabel"),
-                    dcc.Input(id='interp-valor', type='number', placeholder='Ej: 5.5',
-                              min=0, step=0.01, className="ii",
-                              debounce=False)
-                ]),
-                html.Button("Calcular →", id='interp-btn', n_clicks=0, className="ib"),
+    html.Div(className="section", children=[
+        section_label("01", "Perú · Curva soberana", "SBS / PEN"),
+        html.Div(className="section-body", children=[
+            html.Div(className="control-grid", children=[
+                html.Div([html.Label("Fechas de comparación", className="field-label"), dcc.Dropdown(id="dropdown-fechas", options=fecha_options, value=default_fecha, multi=True, placeholder="Selecciona una o más fechas", className="dash-dropdown")]),
+                html.Div([html.Label("Variable del eje horizontal", className="field-label"), dcc.RadioItems(id="radio-xaxis", options=[{"label":"Duración","value":"duración"},{"label":"Madurez","value":"maturity"}], value="duración", className="radio-wrap")])
             ]),
-            html.Div(id='interp-result'),
-        ])
-    ]),
-
-    # Histórico
-    html.Div(className="sec", children=[
-        html.Div(className="shead", children=[html.Div(className="dot", style={'background':'#d97706'}), html.Span("Serie de tiempo histórica", className="stit")]),
-        html.Div(className="sbody", children=[
-            html.Div(style={'display':'grid','gridTemplateColumns':'1fr 200px','gap':'16px','marginBottom':'12px'}, children=[
-                html.Div([
-                    html.Span("Instrumento (ISIN / Nemónico)", className="clabel"),
-                    dcc.Dropdown(id="dropdown-busqueda", options=busqueda_options, value=default_busqueda,
-                                 style={'fontFamily':'IBM Plex Mono','fontSize':'12px'})
-                ]),
-                html.Div([
-                    html.Span("Métrica", className="clabel"),
-                    dcc.RadioItems(
-                        id='radio-metric',
-                        options=[{'label':'  TIR (%)','value':'tir %'},{'label':'  Precio (%)','value':'p. limpio (%)'}],
-                        value='tir %',
-                        labelStyle={'display':'inline-block','marginRight':'16px','fontFamily':'IBM Plex Mono','fontSize':'12px','color':'#475569','cursor':'pointer'}
-                    )
-                ]),
-            ]),
+            html.Div("Selecciona varias fechas para comparar desplazamientos y cambios de pendiente en la curva.", className="field-note")
         ]),
-        dcc.Graph(id="graph-historical", config={'displayModeBar':True,'modeBarButtonsToRemove':['select2d','lasso2d'],'displaylogo':False}),
+        dcc.Graph(id="graph-curve", config={"displayModeBar":True,"modeBarButtonsToRemove":["select2d","lasso2d","autoScale2d"],"displaylogo":False})
     ]),
+
+    html.Div(className="section", children=[section_label("02", "Cambio entre curvas", "BPS"), dcc.Graph(id="graph-spread", config={"displayModeBar":False,"displaylogo":False})]),
+
+    html.Div(className="section", children=[
+        section_label("03", "Consulta de yield interpolada", "LINEAR INTERPOLATION"),
+        html.Div(className="section-body", children=[
+            html.Div(className="control-grid three", children=[
+                html.Div([html.Label("Fecha de la curva", className="field-label"), dcc.Dropdown(id="interp-fecha", options=fecha_options, value=default_fecha[0] if default_fecha else None, placeholder="Selecciona fecha", clearable=False, className="dash-dropdown")]),
+                html.Div([html.Label("Eje de interpolación", className="field-label"), dcc.Dropdown(id="interp-xaxis", options=[{"label":"Duración (años)","value":"duración"},{"label":"Madurez (años)","value":"maturity"}], value="duración", clearable=False, className="dash-dropdown")]),
+                html.Div([html.Label("Plazo objetivo (años)", className="field-label"), dcc.Input(id="interp-valor", type="number", placeholder="Ej. 5.5", min=0, step=0.01, className="field-input", style={"width":"100%","padding":"10px","border":"1px solid #DCDCD3","fontFamily":"IBM Plex Mono","fontSize":"12px"})]),
+            ]),
+            html.Div(style={"marginTop":"13px"}, children=[html.Button("Calcular yield", id="interp-btn", n_clicks=0, className="action-button")]),
+            html.Div(id="interp-result")
+        ])
+    ]),
+
+    html.Div(className="section", children=[
+        section_label("04", "Histórico por instrumento", "SBS / ISIN"),
+        html.Div(className="section-body", children=[
+            html.Div(className="control-grid", children=[
+                html.Div([html.Label("Instrumento", className="field-label"), dcc.Dropdown(id="dropdown-busqueda", options=busqueda_options, value=default_busqueda, placeholder="Busca por ISIN o nemónico", className="dash-dropdown")]),
+                html.Div([html.Label("Métrica", className="field-label"), dcc.RadioItems(id="radio-metric", options=[{"label":"TIR (%)","value":"tir %"},{"label":"Precio limpio (%)","value":"p. limpio (%)"}], value="tir %", className="radio-wrap")])
+            ])
+        ]),
+        dcc.Graph(id="graph-historical", config={"displayModeBar":True,"modeBarButtonsToRemove":["select2d","lasso2d"],"displaylogo":False})
+    ]),
+
+    html.Div(className="section", children=[
+        section_label("05", "US Treasury · Curva del Tesoro", "FRED / USD"),
+        html.Div(className="section-body", children=[
+            html.Div(className="control-grid", children=[
+                html.Div([html.Label("Fechas de comparación", className="field-label"), dcc.Dropdown(id="treasury-dates", options=treasury_date_options, value=treasury_default_date, multi=True, placeholder="Selecciona fechas", className="dash-dropdown")]),
+                html.Div([html.Label("Plazo para la serie histórica", className="field-label"), dcc.Dropdown(id="treasury-tenor", options=[{"label":k,"value":k} for k in TREASURY_TENORS], value="US 10Y", clearable=False, className="dash-dropdown")])
+            ]),
+            html.Div(fred_status, className="fred-status", id="fred-status")
+        ]),
+        html.Div(className="section-body", children=[html.Div("CURVE SNAPSHOT", className="field-label"), dcc.Graph(id="graph-treasury-curve", config={"displayModeBar":False,"displaylogo":False})]),
+        html.Div(className="section-body", style={"borderTop":"1px solid #E9E8E1"}, children=[html.Div("HISTORICAL YIELD", className="field-label"), dcc.Graph(id="graph-treasury-history", config={"displayModeBar":False,"displaylogo":False})])
+    ])
 ])
 
-# ─── Callbacks ────────────────────────────────────────────────────────────────
-
+# -----------------------------------------------------------------------------
+# Callbacks SBS
+# -----------------------------------------------------------------------------
 @app.callback(
-    [Output("graph-curve","figure"), Output("graph-spread","figure")],
-    [Input("dropdown-fechas","value"), Input("radio-xaxis","value")]
+    [Output("graph-curve", "figure"), Output("graph-spread", "figure")],
+    [Input("dropdown-fechas", "value"), Input("radio-xaxis", "value")]
 )
 def update_curves(selected_dates, xaxis):
-    empty = go.Figure(layout=go.Layout(**white_layout("","",year_ticks=False)))
     if df_curve.empty or not selected_dates:
-        return empty, empty
+        return empty_figure("No hay datos para las fechas seleccionadas"), empty_figure("Selecciona al menos dos fechas")
+    dates = pd.to_datetime(selected_dates)
+    curve_data = df_curve[df_curve["fecha"].dt.strftime("%Y-%m-%d").isin(dates.strftime("%Y-%m-%d"))]
+    if curve_data.empty:
+        return empty_figure("No hay observaciones para esta selección"), empty_figure("Sin datos")
 
-    fechas_dt = pd.to_datetime(selected_dates)
-    df_sel = df_curve[df_curve['fecha'].isin(fechas_dt)]
-    if df_sel.empty:
-        return empty, empty
-
-    xtitle = "Duración (años)" if xaxis == 'duración' else "Madurez (años)"
-    fig_curve   = go.Figure()
-    curvas_interp = {}
-
-    for i, fecha in enumerate(sorted(df_sel['fecha'].unique())):
-        df_f = df_sel[df_sel['fecha'] == fecha].sort_values(xaxis)
-        x, y, nem = df_f[xaxis].values, df_f['tir %'].values, df_f['nemónico'].values
-        if len(x) < 2:
+    x_title = "Duración (años)" if xaxis == "duración" else "Madurez (años)"
+    fig_curve, interpolated = go.Figure(), {}
+    for i, date in enumerate(sorted(curve_data["fecha"].dt.normalize().unique())):
+        sub = curve_data[curve_data["fecha"].dt.normalize() == date].sort_values(xaxis)
+        sub = sub.dropna(subset=[xaxis, "tir %"])
+        sub = sub[np.isfinite(sub[xaxis]) & np.isfinite(sub["tir %"])]
+        sub = sub.drop_duplicates(subset=[xaxis], keep="last")
+        if len(sub) < 2:
             continue
-        x_i = np.linspace(x.min(), x.max(), 200)
-        y_i = np.interp(x_i, x, y)
-        curvas_interp[fecha] = (x_i, y_i)
+        x, y = sub[xaxis].to_numpy(dtype=float), sub["tir %"].to_numpy(dtype=float)
+        xi = np.linspace(x.min(), x.max(), 180)
+        yi = np.interp(xi, x, y)
+        date_key = pd.Timestamp(date)
+        interpolated[date_key] = (xi, yi)
         color = PALETTE[i % len(PALETTE)]
+        fig_curve.add_trace(go.Scatter(x=xi, y=yi, mode="lines", name=date_key.strftime("%d/%m/%Y"), line=dict(width=2.2, color=color), hovertemplate="%{x:.2f} años · %{y:.3f}%<extra>%{fullData.name}</extra>"))
+        fig_curve.add_trace(go.Scatter(x=x, y=y, mode="markers", marker=dict(size=6, color=color, line=dict(width=1, color=WHITE)), text=sub["nemónico"], showlegend=False, hovertemplate="<b>%{text}</b><br>%{x:.2f} años · %{y:.3f}%<extra></extra>"))
+    fig_curve.update_layout(**plot_layout(x_title, "TIR (%)", 390))
 
-        fig_curve.add_trace(go.Scatter(
-            x=x_i, y=y_i, mode='lines', name=fecha.strftime('%d/%m/%Y'),
-            line=dict(width=2.5, color=color)
-        ))
-        fig_curve.add_trace(go.Scatter(
-            x=x, y=y, mode='markers',
-            marker=dict(size=7, color=color, line=dict(width=1.5, color='#fff')),
-            text=nem,
-            hovertemplate="<b>%{text}</b><br>%{x:.2f} yr → <b>%{y:.3f}%</b><extra></extra>",
-            showlegend=False
-        ))
-
-    fig_curve.update_layout(**white_layout(xtitle, "TIR (%)"))
-
-    # Spread — usar barras en lugar de fill para evitar el bug de renderizado infinito
     fig_spread = go.Figure()
-    if len(curvas_interp) >= 2:
-        f1, f2 = sorted(curvas_interp.keys())[0], sorted(curvas_interp.keys())[-1]
-        x1, y1 = curvas_interp[f1]
-        x2, y2 = curvas_interp[f2]
-        # Reducir a ~60 puntos para el gráfico de barras (más legible y sin bugs de fill)
-        xc = np.linspace(max(x1.min(), x2.min()), min(x1.max(), x2.max()), 60)
-        sp = (np.interp(xc, x2, y2) - np.interp(xc, x1, y1)) * 100
-
-        colors = ['#059669' if v >= 0 else '#e11d48' for v in sp]
-
-        fig_spread.add_trace(go.Bar(
-            x=xc,
-            y=sp,
-            marker_color=colors,
-            marker_line_width=0,
-            name=f"{f2:%d/%m/%Y} − {f1:%d/%m/%Y}",
-            hovertemplate="%{x:.2f} yr → <b>%{y:.1f} bps</b><extra></extra>",
-        ))
-        fig_spread.add_hline(y=0, line_color='#cbd5e1', line_width=1)
-
-    sp_layout = white_layout(xtitle, "bps", height=220)
-    sp_layout['bargap'] = 0.15
-    fig_spread.update_layout(**sp_layout)
+    if len(interpolated) >= 2:
+        first, last = sorted(interpolated)[0], sorted(interpolated)[-1]
+        x1, y1 = interpolated[first]
+        x2, y2 = interpolated[last]
+        lo, hi = max(x1.min(), x2.min()), min(x1.max(), x2.max())
+        if lo < hi:
+            xs = np.linspace(lo, hi, 70)
+            spread = (np.interp(xs, x2, y2) - np.interp(xs, x1, y1)) * 100
+            colors = [TEAL if value >= 0 else RUST for value in spread]
+            fig_spread.add_trace(go.Bar(x=xs, y=spread, marker_color=colors, marker_line_width=0, name=f"{last:%d/%m/%Y} − {first:%d/%m/%Y}", hovertemplate="%{x:.2f} años · <b>%{y:.1f} bps</b><extra></extra>"))
+            fig_spread.add_hline(y=0, line_color="#AEB1A8", line_width=1)
+    if not fig_spread.data:
+        fig_spread.add_annotation(text="Selecciona dos o más curvas con rangos de plazo superpuestos", x=.5, y=.5, xref="paper", yref="paper", showarrow=False, font=dict(color=MUTED, size=12))
+    layout = plot_layout(x_title, "Cambio (bps)", 250)
+    layout["bargap"] = 0.12
+    fig_spread.update_layout(**layout)
     return fig_curve, fig_spread
 
 
 @app.callback(
-    Output("interp-result","children"),
-    Input("interp-btn","n_clicks"),
-    [State("interp-fecha","value"), State("interp-xaxis","value"), State("interp-valor","value")],
+    Output("interp-result", "children"), Input("interp-btn", "n_clicks"),
+    [State("interp-fecha", "value"), State("interp-xaxis", "value"), State("interp-valor", "value")],
     prevent_initial_call=True
 )
-def calc_interpolation(n_clicks, fecha_str, xaxis, valor):
-    def err(msg):
-        return html.Div(className="rbox err", children=[
-            html.Div([html.Div("Error", className="rlabel"), html.Div(msg, className="rval")])
-        ])
-
-    if not fecha_str or valor is None:
-        return err("Completa todos los campos")
-
-    fecha_dt = pd.to_datetime(fecha_str)
-    df_f = df_curve[df_curve['fecha'] == fecha_dt].sort_values(xaxis)
-    if df_f.empty:
-        return err(f"Sin datos para {fecha_str}")
-
-    x_data = df_f[xaxis].values
-    y_data = df_f['tir %'].values
-    if len(x_data) < 2:
-        return err("Insuficientes puntos")
-    if valor < x_data.min() or valor > x_data.max():
-        return err(f"Fuera del rango [{x_data.min():.2f} – {x_data.max():.2f} yr]")
-
-    yield_v  = float(np.interp(valor, x_data, y_data))
-    eje_lbl  = "duración" if xaxis == "duración" else "madurez"
-
-    return html.Div(className="rbox ok", children=[
-        html.Div([
-            html.Div("Yield interpolada", className="rlabel"),
-            html.Div(f"{yield_v:.4f}%",   className="rval"),
-        ]),
-        html.Div(className="rmeta", children=[
-            html.Div(f"{eje_lbl}: {valor:.2f} yr"),
-            html.Div(fecha_dt.strftime('%d/%m/%Y')),
-        ]),
+def calc_interpolation(n_clicks, date_str, xaxis, value):
+    def error(message):
+        return html.Div(className="result-box error-box", children=[html.Div([html.Div("NO DISPONIBLE", className="result-label"), html.Div(message, className="result-value", style={"fontSize":"14px"})])])
+    if not date_str or value is None:
+        return error("Completa la fecha y el plazo objetivo.")
+    date = pd.to_datetime(date_str)
+    sub = df_curve[df_curve["fecha"].dt.strftime("%Y-%m-%d") == date.strftime("%Y-%m-%d")].sort_values(xaxis).dropna(subset=[xaxis, "tir %"])
+    sub = sub[np.isfinite(sub[xaxis]) & np.isfinite(sub["tir %"])].drop_duplicates(subset=[xaxis])
+    if len(sub) < 2:
+        return error("No hay suficientes puntos para interpolar.")
+    xs, ys = sub[xaxis].to_numpy(dtype=float), sub["tir %"].to_numpy(dtype=float)
+    if value < xs.min() or value > xs.max():
+        return error(f"El plazo debe estar entre {xs.min():.2f} y {xs.max():.2f} años.")
+    yield_value = float(np.interp(value, xs, ys))
+    return html.Div(className="result-box", children=[
+        html.Div([html.Div("YIELD INTERPOLADA", className="result-label"), html.Div(f"{yield_value:.4f}%", className="result-value")]),
+        html.Div([html.Div(f"{value:.2f} años"), html.Div(date.strftime("%d/%m/%Y")), html.Div("Interpolación lineal")], className="result-meta")
     ])
 
 
-@app.callback(
-    Output("graph-historical","figure"),
-    [Input("dropdown-busqueda","value"), Input("radio-metric","value")]
-)
-def update_hist(busqueda, metric):
-    empty = go.Figure(layout=go.Layout(**white_layout("","",height=300,year_ticks=False)))
-    if df.empty or not busqueda:
-        return empty
-    isin = busqueda.split(" | ")[0]
-    df_i = df[df['isin'] == isin].sort_values('fecha')
-    if df_i.empty:
-        return empty
+@app.callback(Output("graph-historical", "figure"), [Input("dropdown-busqueda", "value"), Input("radio-metric", "value")])
+def update_history(search_value, metric):
+    if df.empty or not search_value or metric not in df.columns:
+        return empty_figure("Selecciona un instrumento para ver su historia")
+    isin = search_value.split(" | ")[0]
+    sub = df[df["isin"].astype(str) == isin].sort_values("fecha").dropna(subset=[metric])
+    if sub.empty:
+        return empty_figure("No hay observaciones para esta métrica")
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=sub["fecha"], y=sub[metric], mode="lines", line=dict(width=1.8, color=NAVY), name=metric, hovertemplate="%{x|%d/%m/%Y}<br><b>%{y:.3f}</b><extra></extra>"))
+    fig.add_trace(go.Scatter(x=[sub["fecha"].iloc[-1]], y=[sub[metric].iloc[-1]], mode="markers", marker=dict(size=7, color=RUST), showlegend=False, hovertemplate="Último dato · %{y:.3f}<extra></extra>"))
+    fig.update_layout(**plot_layout("Fecha", metric.upper(), 320, date_axis=True))
+    return fig
 
-    x, y = df_i['fecha'], df_i[metric].values
-    fig  = go.Figure()
-    fig.add_trace(go.Scatter(x=x, y=y, mode='none', fill='tozeroy',
-                             fillcolor='rgba(37,99,235,0.06)', showlegend=False))
-    fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(width=2,color='#2563eb'), name=metric,
-                             hovertemplate="%{x|%d/%m/%Y} → <b>%{y:.3f}</b><extra></extra>"))
-    fig.add_trace(go.Scatter(x=[x.iloc[-1]], y=[y[-1]], mode='markers',
-                             marker=dict(size=8,color='#2563eb',line=dict(width=2,color='#fff')),
-                             showlegend=False,
-                             hovertemplate=f"Último: {y[-1]:.3f}<extra></extra>"))
-    layout = white_layout("Fecha", metric.upper(), height=300, year_ticks=False)
-    fig.update_layout(**layout)
+# -----------------------------------------------------------------------------
+# Callbacks US Treasury / FRED
+# -----------------------------------------------------------------------------
+@app.callback(Output("graph-treasury-curve", "figure"), Input("treasury-dates", "value"))
+def update_treasury_curve(selected_dates):
+    if df_treasury.empty or not selected_dates:
+        return empty_figure("No hay datos FRED disponibles. Configura FRED_API_KEY y reinicia la aplicación.")
+    selected_set = set(pd.to_datetime(selected_dates).strftime("%Y-%m-%d"))
+    sub = df_treasury[df_treasury["date"].dt.strftime("%Y-%m-%d").isin(selected_set)]
+    if sub.empty:
+        return empty_figure("No hay observaciones para las fechas seleccionadas")
+    fig = go.Figure()
+    for i, (_, row) in enumerate(sub.sort_values("date").iterrows()):
+        xs, ys, labels = [], [], []
+        for tenor in TREASURY_TENORS:
+            value = row.get(tenor, np.nan)
+            if pd.notna(value):
+                xs.append(TENOR_YEARS[tenor]); ys.append(float(value)); labels.append(tenor)
+        if xs:
+            fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", name=row["date"].strftime("%d/%m/%Y"), line=dict(width=2.2, color=PALETTE[i % len(PALETTE)]), marker=dict(size=5), customdata=labels, hovertemplate="<b>%{customdata}</b><br>%{y:.3f}%<extra>%{fullData.name}</extra>"))
+    fig.update_layout(**plot_layout("Plazo al vencimiento", "Rendimiento (%)", 350))
+    fig.update_xaxes(tickmode="array", tickvals=list(TENOR_YEARS.values()), ticktext=["1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "20Y", "30Y"])
     return fig
 
 
-# ─── Run ──────────────────────────────────────────────────────────────────────
-port = int(os.environ.get("PORT", 10000))
+@app.callback(Output("graph-treasury-history", "figure"), [Input("treasury-tenor", "value"), Input("treasury-dates", "value")])
+def update_treasury_history(tenor, selected_dates):
+    if df_treasury.empty or tenor not in df_treasury.columns:
+        return empty_figure("No hay datos históricos de FRED para mostrar")
+    sub = df_treasury[["date", tenor]].dropna().sort_values("date")
+    if sub.empty:
+        return empty_figure("No hay observaciones para este plazo")
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=sub["date"], y=sub[tenor], mode="lines", name=tenor, line=dict(width=1.8, color=NAVY), hovertemplate="%{x|%d/%m/%Y}<br><b>%{y:.3f}%</b><extra></extra>"))
+    if selected_dates:
+        date_set = set(pd.to_datetime(selected_dates).strftime("%Y-%m-%d"))
+        marks = sub[sub["date"].dt.strftime("%Y-%m-%d").isin(date_set)]
+        if not marks.empty:
+            fig.add_trace(go.Scatter(x=marks["date"], y=marks[tenor], mode="markers", name="Fechas seleccionadas", marker=dict(size=8, color=RUST, line=dict(width=1, color=WHITE)), hovertemplate="%{x|%d/%m/%Y}<br><b>%{y:.3f}%</b><extra></extra>"))
+    fig.update_layout(**plot_layout("Fecha", f"{tenor} · rendimiento (%)", 320, date_axis=True))
+    return fig
+
+
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "10000"))
     app.run(debug=False, host="0.0.0.0", port=port)
