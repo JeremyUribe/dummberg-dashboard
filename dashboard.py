@@ -18,6 +18,7 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
+from flask import Response
 
 # -----------------------------------------------------------------------------
 # Configuración
@@ -233,6 +234,31 @@ external_stylesheets = [
 ]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=False)
 app.title = "Bondora — Fixed Income Research"
+
+# SEO: robots.txt y sitemap.xml para buscadores
+# -----------------------------------------------------------------------------
+
+@app.server.route("/robots.txt")
+def robots_txt():
+    contenido = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "\n"
+        "Sitemap: https://bondora.onrender.com/sitemap.xml\n"
+    )
+    return Response(contenido, mimetype="text/plain")
+
+
+@app.server.route("/sitemap.xml")
+def sitemap_xml():
+    contenido = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://bondora.onrender.com/</loc>
+    </url>
+</urlset>"""
+    return Response(contenido, mimetype="application/xml")
+
 
 app.index_string = '''<!DOCTYPE html>
 <html><head>{%metas%}<title>{%title%}</title>
