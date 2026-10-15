@@ -233,9 +233,19 @@ external_stylesheets = [
 ]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=False)
 app.title = "Bondora — Fixed Income Research"
+
 app.index_string = '''<!DOCTYPE html>
-<html><head>{%metas%}<title>{%title%}</title>{%css%}
-<style>
+<html><head>{%metas%}<title>{%title%}</title>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-DQNC632HM7"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-DQNC632HM7');
+</script>
+{%css%}
+<style>```
 *{box-sizing:border-box}html,body{margin:0;background:#F5F4EF;color:#202923;font-family:'IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased}
 :root{--paper:#F5F4EF;--white:#fff;--ink:#202923;--muted:#777B73;--line:#DCDCD3;--navy:#243B53;--rust:#B65F43;--teal:#487A72;--mono:'IBM Plex Mono',monospace}
 .shell{min-height:100vh;display:flex;flex-direction:column}.topbar{height:62px;background:#F5F4EF;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 clamp(18px,4vw,58px);position:sticky;top:0;z-index:100}
