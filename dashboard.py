@@ -271,7 +271,7 @@ app.index_string = '''<!DOCTYPE html>
   gtag('config', 'G-DQNC632HM7');
 </script>
 {%css%}
-<style>```
+<style>
 *{box-sizing:border-box}html,body{margin:0;background:#F5F4EF;color:#202923;font-family:'IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased}
 :root{--paper:#F5F4EF;--white:#fff;--ink:#202923;--muted:#777B73;--line:#DCDCD3;--navy:#243B53;--rust:#B65F43;--teal:#487A72;--mono:'IBM Plex Mono',monospace}
 .shell{min-height:100vh;display:flex;flex-direction:column}.topbar{height:62px;background:#F5F4EF;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 clamp(18px,4vw,58px);position:sticky;top:0;z-index:100}
