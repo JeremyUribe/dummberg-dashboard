@@ -23,7 +23,7 @@ from flask import Response
 # -----------------------------------------------------------------------------
 # Configuración
 # -----------------------------------------------------------------------------
-FRED_API_KEY = "099f42ea3623e3295b6401aa6d4476b7"
+FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
 BASE_DIR = Path(__file__).resolve().parent
 SBS_FILE = Path(os.getenv("SBS_DATA_FILE", BASE_DIR / "vector_precios_unido_pen.pkl"))
 FRED_CACHE_FILE = Path(os.getenv("FRED_CACHE_FILE", BASE_DIR / "us_treasury_fred.pkl"))
