@@ -242,7 +242,7 @@ app.title = "Bondora — Fixed Income Research"
 def robots_txt():
     contenido = (
         "User-agent: *\n"
-        "Allow: /\n"
+        "Disallow:\n"
         "\n"
         "Sitemap: https://bondora.onrender.com/sitemap.xml\n"
     )
