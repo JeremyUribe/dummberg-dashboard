@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-
+from analytics.fixed_income import interpolate_yield
 import numpy as np
 import pandas as pd
 
@@ -300,23 +300,59 @@ def update_curves(selected_dates, xaxis):
     prevent_initial_call=True
 )
 def calc_interpolation(n_clicks, date_str, xaxis, value):
-    def error(message):
-        return html.Div(className="result-box error-box", children=[html.Div([html.Div("NO DISPONIBLE", className="result-label"), html.Div(message, className="result-value", style={"fontSize":"14px"})])])
-    if not date_str or value is None:
-        return error("Completa la fecha y el plazo objetivo.")
-    date = pd.to_datetime(date_str)
-    sub = df_curve[df_curve["fecha"].dt.strftime("%Y-%m-%d") == date.strftime("%Y-%m-%d")].sort_values(xaxis).dropna(subset=[xaxis, "tir %"])
-    sub = sub[np.isfinite(sub[xaxis]) & np.isfinite(sub["tir %"])].drop_duplicates(subset=[xaxis])
-    if len(sub) < 2:
-        return error("No hay suficientes puntos para interpolar.")
-    xs, ys = sub[xaxis].to_numpy(dtype=float), sub["tir %"].to_numpy(dtype=float)
-    if value < xs.min() or value > xs.max():
-        return error(f"El plazo debe estar entre {xs.min():.2f} y {xs.max():.2f} años.")
-    yield_value = float(np.interp(value, xs, ys))
-    return html.Div(className="result-box", children=[
-        html.Div([html.Div("YIELD INTERPOLADA", className="result-label"), html.Div(f"{yield_value:.4f}%", className="result-value")]),
-        html.Div([html.Div(f"{value:.2f} años"), html.Div(date.strftime("%d/%m/%Y")), html.Div("Interpolación lineal")], className="result-meta")
-    ])
+    yield_value, error_message, date = interpolate_yield(
+        df_curve,
+        date_str,
+        xaxis,
+        value,
+    )
+
+    if error_message:
+        return html.Div(
+            className="result-box error-box",
+            children=[
+                html.Div(
+                    [
+                        html.Div(
+                            "NO DISPONIBLE",
+                            className="result-label",
+                        ),
+                        html.Div(
+                            error_message,
+                            className="result-value",
+                            style={"fontSize": "14px"},
+                        ),
+                    ]
+                )
+            ],
+        )
+
+    return html.Div(
+        className="result-box",
+        children=[
+            html.Div(
+                [
+                    html.Div(
+                        "YIELD INTERPOLADA",
+                        className="result-label",
+                    ),
+                    html.Div(
+                        f"{yield_value:.4f}%",
+                        className="result-value",
+                    ),
+                ]
+            ),
+            html.Div(
+                [
+                    html.Div(f"{value:.2f} años"),
+                    html.Div(date.strftime("%d/%m/%Y")),
+                    html.Div("Interpolación lineal"),
+                ],
+                className="result-meta",
+            ),
+        ],
+    )
+
 
 
 @app.callback(Output("graph-historical", "figure"), [Input("dropdown-busqueda", "value"), Input("radio-metric", "value")])
