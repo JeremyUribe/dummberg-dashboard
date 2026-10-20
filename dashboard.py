@@ -8,12 +8,11 @@ Dependencias: pip install dash pandas numpy plotly requests
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from datetime import datetime, timedelta
+
 
 import numpy as np
 import pandas as pd
-import requests
+
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
@@ -23,17 +22,14 @@ from flask import Response
 # -----------------------------------------------------------------------------
 # Configuración
 # -----------------------------------------------------------------------------
-FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
-BASE_DIR = Path(__file__).resolve().parent
-SBS_FILE = Path(os.getenv("SBS_DATA_FILE", BASE_DIR / "vector_precios_unido_pen.pkl"))
-FRED_CACHE_FILE = Path(os.getenv("FRED_CACHE_FILE", BASE_DIR / "us_treasury_fred.pkl"))
 
-FRED_SERIES = {
-    "US 1Y": "DGS1", "US 2Y": "DGS2", "US 3Y": "DGS3", "US 5Y": "DGS5",
-    "US 7Y": "DGS7", "US 10Y": "DGS10", "US 20Y": "DGS20", "US 30Y": "DGS30",
-}
-TENOR_YEARS = {"US 1Y": 1, "US 2Y": 2, "US 3Y": 3, "US 5Y": 5,
-               "US 7Y": 7, "US 10Y": 10, "US 20Y": 20, "US 30Y": 30}
+# -----------------------------------------------------------------------------
+# Configuración e importación de datos
+# -----------------------------------------------------------------------------
+from data.sbs import load_sbs
+from data.fred import load_treasury, FRED_SERIES, TENOR_YEARS
+
+
 
 # Visual identity: editorial research, not generic KPI cards.
 INK = "#202923"
@@ -50,125 +46,54 @@ PALETTE = [NAVY, RUST, TEAL, GOLD, "#71658A", "#6E7D87"]
 # -----------------------------------------------------------------------------
 # Carga SBS
 # -----------------------------------------------------------------------------
-def load_sbs():
-    try:
-        raw = pd.read_pickle(SBS_FILE)
-    except Exception as exc:
-        print(f"No se pudo cargar el archivo SBS {SBS_FILE}: {exc}")
-        return pd.DataFrame(), pd.DataFrame(), [], [], [], None
-
-    if raw.empty:
-        return raw, pd.DataFrame(), [], [], [], None
-
-    required = {"isin", "fecha", "f. vencimiento", "emisor", "moneda", "tir %", "nemónico"}
-    missing = required.difference(raw.columns)
-    if missing:
-        print(f"El archivo SBS no contiene columnas requeridas: {sorted(missing)}")
-        return pd.DataFrame(), pd.DataFrame(), [], [], [], None
-
-    df = raw.copy()
-    df = df[df["isin"].astype(str) != "PEP01000C4R4"].copy()
-    df["fecha"] = pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
-    df["f. vencimiento"] = pd.to_datetime(df["f. vencimiento"], dayfirst=True, errors="coerce")
-    df["tir %"] = pd.to_numeric(df["tir %"], errors="coerce")
-    if "p. limpio (%)" in df.columns:
-        df["p. limpio (%)"] = pd.to_numeric(df["p. limpio (%)"], errors="coerce")
-    else:
-        df["p. limpio (%)"] = np.nan
-    df = df.dropna(subset=["fecha", "f. vencimiento"])
-    df["maturity"] = (df["f. vencimiento"] - df["fecha"]).dt.days / 365.25
-    df["busqueda"] = df["isin"].astype(str) + " | " + df["nemónico"].astype(str)
-    curve = df[(df["emisor"] == "GOB.CENTRAL") & (df["moneda"] == "PEN")].copy()
-    dates = sorted(curve["fecha"].dt.normalize().dropna().unique())
-    date_options = [{"label": pd.Timestamp(d).strftime("%d/%m/%Y"), "value": pd.Timestamp(d).strftime("%Y-%m-%d")} for d in dates]
-    search_options = [{"label": x, "value": x} for x in sorted(df["busqueda"].dropna().unique())]
-    default_dates = [pd.Timestamp(dates[-1]).strftime("%Y-%m-%d")] if dates else []
-    default_search = search_options[0]["value"] if search_options else None
-    return df, curve, date_options, search_options, default_dates, default_search
-
 
 df, df_curve, fecha_options, busqueda_options, default_fecha, default_busqueda = load_sbs()
 
 # -----------------------------------------------------------------------------
-# FRED — descarga de series diarias de Treasury. Cache local si falla la API.
+# US Treasury / FRED
 # -----------------------------------------------------------------------------
-def load_fred_series(series_id: str, api_key: str, start_date: str = "1990-01-01") -> pd.DataFrame:
-    url = "https://api.stlouisfed.org/fred/series/observations"
-    params = {
-        "series_id": series_id,
-        "api_key": api_key,
-        "file_type": "json",
-        "observation_start": start_date,
-        "sort_order": "asc",
-    }
-    response = requests.get(url, params=params, timeout=25)
-    response.raise_for_status()
-    payload = response.json()
-    if "error_code" in payload:
-        raise RuntimeError(payload.get("error_message", "FRED API error"))
-    observations = payload.get("observations", [])
-    out = pd.DataFrame(observations, columns=["date", "value"])
-    if out.empty:
-        return pd.DataFrame(columns=["date", series_id])
-    out["date"] = pd.to_datetime(out["date"], errors="coerce")
-    out[series_id] = pd.to_numeric(out["value"].replace(".", np.nan), errors="coerce")
-    return out[["date", series_id]].dropna(subset=["date"])
-
-
-def load_treasury() -> tuple[pd.DataFrame, str]:
-    frames = []
-    api_errors = []
-    if FRED_API_KEY:
-        for label, series_id in FRED_SERIES.items():
-            try:
-                series_df = load_fred_series(series_id, FRED_API_KEY)
-                series_df = series_df.rename(columns={series_id: label})
-                frames.append(series_df)
-            except Exception as exc:
-                api_errors.append(f"{series_id}: {exc}")
-        if frames:
-            merged = frames[0]
-            for frame in frames[1:]:
-                merged = merged.merge(frame, on="date", how="outer")
-            merged = merged.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
-            try:
-                merged.to_pickle(FRED_CACHE_FILE)
-            except Exception as exc:
-                print(f"No se pudo guardar la caché FRED: {exc}")
-            status = f"FRED · actualización consultada {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-            if api_errors:
-                status += f" · avisos en {len(api_errors)} serie(s); se conservaron las disponibles"
-            return merged, status
-
-    # Sin API key o si falla la descarga: usar caché anterior si existe.
-    try:
-        cached = pd.read_pickle(FRED_CACHE_FILE)
-        if not cached.empty and "date" in cached.columns:
-            cached["date"] = pd.to_datetime(cached["date"], errors="coerce")
-            for label in FRED_SERIES:
-                if label not in cached.columns:
-                    cached[label] = np.nan
-            return cached.sort_values("date").reset_index(drop=True), "FRED · datos de caché local"
-    except Exception as exc:
-        print(f"No se pudo cargar la caché FRED: {exc}")
-
-    if not FRED_API_KEY:
-        return pd.DataFrame(columns=["date", *FRED_SERIES]), "Configura FRED_API_KEY para descargar datos de FRED"
-    return pd.DataFrame(columns=["date", *FRED_SERIES]), "No se pudieron descargar los datos de FRED: " + "; ".join(api_errors[:2])
-
 
 df_treasury, fred_status = load_treasury()
+
 TREASURY_TENORS = list(FRED_SERIES.keys())
+
 if not df_treasury.empty:
     for col in TREASURY_TENORS:
         if col not in df_treasury.columns:
             df_treasury[col] = np.nan
-        df_treasury[col] = pd.to_numeric(df_treasury[col], errors="coerce")
-    df_treasury["date"] = pd.to_datetime(df_treasury["date"], errors="coerce")
-    df_treasury = df_treasury.dropna(subset=["date"]).sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
-treasury_dates = df_treasury["date"].dt.strftime("%Y-%m-%d").tolist() if not df_treasury.empty else []
-treasury_date_options = [{"label": pd.to_datetime(d).strftime("%d/%m/%Y"), "value": d} for d in treasury_dates]
-treasury_default_date = [treasury_dates[-1]] if treasury_dates else []
+
+        df_treasury[col] = pd.to_numeric(
+            df_treasury[col], errors="coerce"
+        )
+
+    df_treasury["date"] = pd.to_datetime(
+        df_treasury["date"], errors="coerce"
+    )
+
+    df_treasury = (
+        df_treasury.dropna(subset=["date"])
+        .sort_values("date")
+        .drop_duplicates("date", keep="last")
+        .reset_index(drop=True)
+    )
+
+treasury_dates = (
+    df_treasury["date"].dt.strftime("%Y-%m-%d").tolist()
+    if not df_treasury.empty
+    else []
+)
+
+treasury_date_options = [
+    {
+        "label": pd.to_datetime(date).strftime("%d/%m/%Y"),
+        "value": date,
+    }
+    for date in treasury_dates
+]
+
+treasury_default_date = (
+    [treasury_dates[-1]] if treasury_dates else []
+)
 
 # -----------------------------------------------------------------------------
 # Helpers de diseño y gráficos
