@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import os
 
-from analytics.fixed_income import interpolate_yield
+from analytics.fixed_income import (
+    interpolate_yield,
+    calculate_curve_spread,
+)
+
 import numpy as np
 import pandas as pd
 
@@ -275,17 +279,41 @@ def update_curves(selected_dates, xaxis):
     fig_curve.update_layout(**plot_layout(x_title, "TIR (%)", 390))
 
     fig_spread = go.Figure()
+
     if len(interpolated) >= 2:
         first, last = sorted(interpolated)[0], sorted(interpolated)[-1]
+
         x1, y1 = interpolated[first]
         x2, y2 = interpolated[last]
-        lo, hi = max(x1.min(), x2.min()), min(x1.max(), x2.max())
-        if lo < hi:
-            xs = np.linspace(lo, hi, 70)
-            spread = (np.interp(xs, x2, y2) - np.interp(xs, x1, y1)) * 100
-            colors = [TEAL if value >= 0 else RUST for value in spread]
-            fig_spread.add_trace(go.Bar(x=xs, y=spread, marker_color=colors, marker_line_width=0, name=f"{last:%d/%m/%Y} − {first:%d/%m/%Y}", hovertemplate="%{x:.2f} años · <b>%{y:.1f} bps</b><extra></extra>"))
-            fig_spread.add_hline(y=0, line_color="#AEB1A8", line_width=1)
+
+        xs, spread = calculate_curve_spread(x1, y1, x2, y2)
+
+        if xs is not None:
+            colors = [
+                TEAL if value >= 0 else RUST
+                for value in spread
+            ]
+
+            fig_spread.add_trace(
+                go.Bar(
+                    x=xs,
+                    y=spread,
+                    marker_color=colors,
+                    marker_line_width=0,
+                    name=f"{last:%d/%m/%Y} − {first:%d/%m/%Y}",
+                    hovertemplate=(
+                        "%{x:.2f} años · "
+                        "<b>%{y:.1f} bps</b><extra></extra>"
+                    ),
+                )
+            )
+
+            fig_spread.add_hline(
+                y=0,
+                line_color="#AEB1A8",
+                line_width=1,
+            )
+
     if not fig_spread.data:
         fig_spread.add_annotation(text="Selecciona dos o más curvas con rangos de plazo superpuestos", x=.5, y=.5, xref="paper", yref="paper", showarrow=False, font=dict(color=MUTED, size=12))
     layout = plot_layout(x_title, "Cambio (bps)", 250)

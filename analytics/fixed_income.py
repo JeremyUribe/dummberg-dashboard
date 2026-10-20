@@ -41,3 +41,32 @@ def interpolate_yield(curve_data, date_str, xaxis, value):
     yield_value = float(np.interp(value, xs, ys))
 
     return yield_value, None, date
+
+
+def calculate_curve_spread(x1, y1, x2, y2, points=70):
+    """Calcula el cambio de TIR en puntos básicos entre dos curvas.
+
+    Solo calcula el spread dentro del rango de plazos compartido.
+    Devuelve (x, spread) o (None, None) si no hay superposición.
+    """
+
+    x1 = np.asarray(x1, dtype=float)
+    y1 = np.asarray(y1, dtype=float)
+    x2 = np.asarray(x2, dtype=float)
+    y2 = np.asarray(y2, dtype=float)
+
+    lo = max(x1.min(), x2.min())
+    hi = min(x1.max(), x2.max())
+
+    if lo >= hi:
+        return None, None
+
+    xs = np.linspace(lo, hi, points)
+
+    # Las TIR están expresadas en porcentaje:
+    # multiplicar su diferencia por 100 convierte el resultado a bps.
+    spread = (
+        np.interp(xs, x2, y2) - np.interp(xs, x1, y1)
+    ) * 100
+
+    return xs, spread
