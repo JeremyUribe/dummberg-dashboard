@@ -12,6 +12,7 @@ import os
 from analytics.fixed_income import (
     interpolate_yield,
     calculate_curve_spread,
+    prepare_selected_curves,
 )
 
 import numpy as np
