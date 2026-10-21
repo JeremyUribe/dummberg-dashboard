@@ -31,7 +31,8 @@ import plotly.graph_objects as go
 # Configuración e importación de datos
 # -----------------------------------------------------------------------------
 from data.sbs import load_sbs
-from data.fred import load_treasury, FRED_SERIES, TENOR_YEARS
+from config import FRED_SERIES, TENOR_YEARS
+from data.fred import load_treasury
 from components.seo import register_seo_routes
 from components.charts import (
     INK,
