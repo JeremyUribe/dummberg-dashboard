@@ -65,26 +65,6 @@ df_treasury, fred_status = load_treasury()
 
 TREASURY_TENORS = list(FRED_SERIES.keys())
 
-if not df_treasury.empty:
-    for col in TREASURY_TENORS:
-        if col not in df_treasury.columns:
-            df_treasury[col] = np.nan
-
-        df_treasury[col] = pd.to_numeric(
-            df_treasury[col], errors="coerce"
-        )
-
-    df_treasury["date"] = pd.to_datetime(
-        df_treasury["date"], errors="coerce"
-    )
-
-    df_treasury = (
-        df_treasury.dropna(subset=["date"])
-        .sort_values("date")
-        .drop_duplicates("date", keep="last")
-        .reset_index(drop=True)
-    )
-
 treasury_dates = (
     df_treasury["date"].dt.strftime("%Y-%m-%d").tolist()
     if not df_treasury.empty
@@ -254,30 +234,89 @@ app.layout = html.Div(className="main", children=[
 )
 def update_curves(selected_dates, xaxis):
     if df_curve.empty or not selected_dates:
-        return empty_figure("No hay datos para las fechas seleccionadas"), empty_figure("Selecciona al menos dos fechas")
-    dates = pd.to_datetime(selected_dates)
-    curve_data = df_curve[df_curve["fecha"].dt.strftime("%Y-%m-%d").isin(dates.strftime("%Y-%m-%d"))]
-    if curve_data.empty:
-        return empty_figure("No hay observaciones para esta selección"), empty_figure("Sin datos")
+        return (
+            empty_figure("No hay datos para las fechas seleccionadas"),
+            empty_figure("Selecciona al menos dos fechas"),
+        )
 
-    x_title = "Duración (años)" if xaxis == "duración" else "Madurez (años)"
-    fig_curve, interpolated = go.Figure(), {}
-    for i, date in enumerate(sorted(curve_data["fecha"].dt.normalize().unique())):
-        sub = curve_data[curve_data["fecha"].dt.normalize() == date].sort_values(xaxis)
-        sub = sub.dropna(subset=[xaxis, "tir %"])
-        sub = sub[np.isfinite(sub[xaxis]) & np.isfinite(sub["tir %"])]
-        sub = sub.drop_duplicates(subset=[xaxis], keep="last")
-        if len(sub) < 2:
-            continue
-        x, y = sub[xaxis].to_numpy(dtype=float), sub["tir %"].to_numpy(dtype=float)
+    dates = pd.to_datetime(selected_dates)
+
+    curve_data = df_curve[
+        df_curve["fecha"].dt.strftime("%Y-%m-%d").isin(
+            dates.strftime("%Y-%m-%d")
+        )
+    ]
+
+    if curve_data.empty:
+        return (
+            empty_figure("No hay observaciones para esta selección"),
+            empty_figure("Sin datos"),
+        )
+
+    x_title = (
+        "Duración (años)"
+        if xaxis == "duración"
+        else "Madurez (años)"
+    )
+
+    fig_curve = go.Figure()
+    interpolated = {}
+
+    prepared_curves = prepare_selected_curves(
+        df_curve,
+        selected_dates,
+        xaxis,
+    )
+
+    for i, curve in enumerate(prepared_curves):
+        date = curve["date"]
+        x = curve["x"]
+        y = curve["y"]
+        labels = curve["labels"]
+
         xi = np.linspace(x.min(), x.max(), 180)
         yi = np.interp(xi, x, y)
-        date_key = pd.Timestamp(date)
-        interpolated[date_key] = (xi, yi)
+
+        interpolated[date] = (xi, yi)
         color = PALETTE[i % len(PALETTE)]
-        fig_curve.add_trace(go.Scatter(x=xi, y=yi, mode="lines", name=date_key.strftime("%d/%m/%Y"), line=dict(width=2.2, color=color), hovertemplate="%{x:.2f} años · %{y:.3f}%<extra>%{fullData.name}</extra>"))
-        fig_curve.add_trace(go.Scatter(x=x, y=y, mode="markers", marker=dict(size=6, color=color, line=dict(width=1, color=WHITE)), text=sub["nemónico"], showlegend=False, hovertemplate="<b>%{text}</b><br>%{x:.2f} años · %{y:.3f}%<extra></extra>"))
-    fig_curve.update_layout(**plot_layout(x_title, "TIR (%)", 390))
+
+        fig_curve.add_trace(
+            go.Scatter(
+                x=xi,
+                y=yi,
+                mode="lines",
+                name=date.strftime("%d/%m/%Y"),
+                line=dict(width=2.2, color=color),
+                hovertemplate=(
+                    "%{x:.2f} años · %{y:.3f}%"
+                    "<extra>%{fullData.name}</extra>"
+                ),
+            )
+        )
+
+        fig_curve.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="markers",
+                marker=dict(
+                    size=6,
+                    color=color,
+                    line=dict(width=1, color=WHITE),
+                ),
+                text=labels,
+                showlegend=False,
+                hovertemplate=(
+                    "<b>%{text}</b><br>"
+                    "%{x:.2f} años · %{y:.3f}%"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig_curve.update_layout(
+        **plot_layout(x_title, "TIR (%)", 390)
+    )
 
     fig_spread = go.Figure()
 
@@ -316,10 +355,23 @@ def update_curves(selected_dates, xaxis):
             )
 
     if not fig_spread.data:
-        fig_spread.add_annotation(text="Selecciona dos o más curvas con rangos de plazo superpuestos", x=.5, y=.5, xref="paper", yref="paper", showarrow=False, font=dict(color=MUTED, size=12))
+        fig_spread.add_annotation(
+            text=(
+                "Selecciona dos o más curvas con "
+                "rangos de plazo superpuestos"
+            ),
+            x=0.5,
+            y=0.5,
+            xref="paper",
+            yref="paper",
+            showarrow=False,
+            font=dict(color=MUTED, size=12),
+        )
+
     layout = plot_layout(x_title, "Cambio (bps)", 250)
     layout["bargap"] = 0.12
     fig_spread.update_layout(**layout)
+
     return fig_curve, fig_spread
 
 
