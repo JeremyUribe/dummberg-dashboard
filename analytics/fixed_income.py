@@ -70,3 +70,58 @@ def calculate_curve_spread(x1, y1, x2, y2, points=70):
     ) * 100
 
     return xs, spread
+
+
+def prepare_selected_curves(curve_data, selected_dates, xaxis):
+    """Filtra y prepara los puntos de las curvas SBS seleccionadas.
+
+    Devuelve una lista de curvas listas para graficar.
+    No depende de Dash ni de Plotly.
+    """
+
+    if curve_data.empty or not selected_dates:
+        return []
+
+    dates = pd.to_datetime(selected_dates)
+
+    filtered = curve_data[
+        curve_data["fecha"].dt.strftime("%Y-%m-%d").isin(
+            dates.strftime("%Y-%m-%d")
+        )
+    ]
+
+    if filtered.empty:
+        return []
+
+    prepared = []
+
+    for date in sorted(filtered["fecha"].dt.normalize().unique()):
+        sub = filtered[
+            filtered["fecha"].dt.normalize() == date
+        ].sort_values(xaxis)
+
+        sub = sub.dropna(subset=[xaxis, "tir %"])
+
+        sub = sub[
+            np.isfinite(sub[xaxis])
+            & np.isfinite(sub["tir %"])
+        ]
+
+        sub = sub.drop_duplicates(
+            subset=[xaxis],
+            keep="last",
+        )
+
+        if len(sub) < 2:
+            continue
+
+        prepared.append(
+            {
+                "date": pd.Timestamp(date),
+                "x": sub[xaxis].to_numpy(dtype=float),
+                "y": sub["tir %"].to_numpy(dtype=float),
+                "labels": sub["nemónico"].tolist(),
+            }
+        )
+
+    return prepared
