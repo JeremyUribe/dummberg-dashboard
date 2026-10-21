@@ -31,8 +31,7 @@ import plotly.graph_objects as go
 # Configuración e importación de datos
 # -----------------------------------------------------------------------------
 from data.sbs import load_sbs
-from config import FRED_SERIES, TENOR_YEARS
-from data.fred import load_treasury
+from data.fred import load_treasury, FRED_SERIES, TENOR_YEARS
 from components.seo import register_seo_routes
 from components.charts import (
     INK,
@@ -512,4 +511,3 @@ def update_treasury_history(tenor, selected_dates):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "10000"))
     app.run(debug=False, host="0.0.0.0", port=port)
-
