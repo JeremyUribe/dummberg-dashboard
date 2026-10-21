@@ -22,7 +22,6 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
-from flask import Response
 
 # -----------------------------------------------------------------------------
 # Configuración
@@ -33,6 +32,7 @@ from flask import Response
 # -----------------------------------------------------------------------------
 from data.sbs import load_sbs
 from data.fred import load_treasury, FRED_SERIES, TENOR_YEARS
+from components.seo import register_seo_routes
 from components.charts import (
     INK,
     MUTED,
@@ -114,30 +114,8 @@ external_stylesheets = [
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=False)
 app.title = "Bondora — Fixed Income Research"
 
-# SEO: robots.txt y sitemap.xml para buscadores
-# -----------------------------------------------------------------------------
-
-@app.server.route("/robots.txt")
-def robots_txt():
-    contenido = (
-        "User-agent: *\n"
-        "Disallow:\n"
-        "\n"
-        "Sitemap: https://bondora.onrender.com/sitemap.xml\n"
-    )
-    return Response(contenido, mimetype="text/plain")
-
-
-@app.server.route("/sitemap.xml")
-def sitemap_xml():
-    contenido = """<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    <url>
-        <loc>https://bondora.onrender.com/</loc>
-    </url>
-</urlset>"""
-    return Response(contenido, mimetype="application/xml")
-
+# SEO: robots.txt y sitemap.xml se registran desde components/seo.py
+register_seo_routes(app.server)
 
 app.index_string = '''<!DOCTYPE html>
 <html><head>{%metas%}<title>{%title%}</title>
@@ -157,72 +135,109 @@ app.index_string = '''<!DOCTYPE html>
 .brand{display:flex;align-items:baseline;gap:14px}.brand-name{font-family:var(--mono);font-size:21px;font-weight:600;letter-spacing:-1.4px}.brand-divider{height:19px;border-left:1px solid #BDBFB6}.brand-sub{font-family:var(--mono);font-size:10px;letter-spacing:1.3px;color:var(--muted);text-transform:uppercase}.top-meta{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.7px}
 .main{width:100%;max-width:1540px;margin:0 auto;padding:32px clamp(18px,4vw,58px) 54px}.page-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:5px 0 24px;border-bottom:1px solid var(--line);margin-bottom:22px}.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:1.7px;color:var(--rust);text-transform:uppercase;margin-bottom:12px}.page-title{font-size:clamp(28px,3vw,42px);font-weight:500;letter-spacing:-1.7px;line-height:1.1;margin:0 0 9px}.page-description{font-size:13px;color:var(--muted);line-height:1.6;max-width:660px}.page-code{text-align:right;font-family:var(--mono);font-size:10px;line-height:1.9;color:var(--muted);white-space:nowrap}
 .overview-strip{display:flex;align-items:stretch;gap:0;background:#ECEBE4;border:1px solid var(--line);margin:0 0 28px;flex-wrap:wrap}.overview-heading{padding:17px 20px;min-width:205px;flex:1.25}.overview-kicker{font-family:var(--mono);font-size:10px;letter-spacing:1.2px;color:var(--muted);margin-bottom:7px}.overview-note{font-size:13px;color:var(--ink)}.overview-stat{padding:17px 19px;border-left:1px solid #D5D5CC;min-width:130px;flex:1}.stat-label{font-family:var(--mono);font-size:9px;letter-spacing:.6px;color:var(--muted);line-height:1.5;margin-bottom:7px}.stat-value{font-family:var(--mono);font-size:18px;font-weight:500;letter-spacing:-.6px;color:var(--ink);white-space:nowrap}
-.section{background:var(--white);border:1px solid var(--line);margin-bottom:22px}.section-head{min-height:47px;display:flex;align-items:center;gap:12px;padding:0 19px;border-bottom:1px solid #E9E8E1}.section-number{font-family:var(--mono);font-size:10px;color:var(--rust)}.section-title{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.1px;color:#4D554E}.section-meta{margin-left:auto;font-family:var(--mono);font-size:10px;color:#92958D}.section-body{padding:17px 19px}.control-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,260px);gap:20px;align-items:end}.control-grid.three{grid-template-columns:minmax(220px,1fr) minmax(170px,220px) minmax(150px,190px)}.field-label{font-family:var(--mono);font-size:10px;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:7px}.field-note{font-size:11px;color:#92958D;margin-top:6px;line-height:1.5}.radio-wrap label{display:inline-flex;align-items:center;margin:5px 16px 5px 0;font-size:12px;color:#4D554E;cursor:pointer}.radio-wrap input{accent-color:var(--navy);margin-right:6px}
+.market-tabs{margin:0 0 25px;border-bottom:1px solid var(--line)}.market-tabs .tab{font-family:var(--mono);font-size:11px;letter-spacing:.3px;padding:14px 22px;background:transparent;border:0;border-bottom:2px solid transparent;color:var(--muted)}.market-tabs .tab--selected{color:var(--navy);border-bottom:2px solid var(--rust);font-weight:600}.market-panel{padding-top:23px}.market-intro{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 18px}.market-heading{font-size:21px;font-weight:500;letter-spacing:-.7px;margin:0}.market-subheading{font-family:var(--mono);font-size:10px;letter-spacing:.6px;color:var(--muted)}.section{background:var(--white);border:1px solid var(--line);margin-bottom:22px}.section-head{min-height:47px;display:flex;align-items:center;gap:12px;padding:0 19px;border-bottom:1px solid #E9E8E1}.section-number{font-family:var(--mono);font-size:10px;color:var(--rust)}.section-title{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.1px;color:#4D554E}.section-meta{margin-left:auto;font-family:var(--mono);font-size:10px;color:#92958D}.section-body{padding:17px 19px}.control-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,260px);gap:20px;align-items:end}.control-grid.three{grid-template-columns:minmax(220px,1fr) minmax(170px,220px) minmax(150px,190px)}.field-label{font-family:var(--mono);font-size:10px;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:7px}.field-note{font-size:11px;color:#92958D;margin-top:6px;line-height:1.5}.radio-wrap label{display:inline-flex;align-items:center;margin:5px 16px 5px 0;font-size:12px;color:#4D554E;cursor:pointer}.radio-wrap input{accent-color:var(--navy);margin-right:6px}
 .dash-dropdown .Select-control,.dash-dropdown .Select__control{border-radius:0!important;border-color:var(--line)!important;box-shadow:none!important;font-family:'IBM Plex Sans',sans-serif!important;font-size:12px!important}.dash-dropdown .Select-control:hover{border-color:#A9ACA2!important}.dash-dropdown .Select-menu-outer{z-index:200!important}.result-box{display:flex;align-items:center;gap:20px;padding:15px 17px;margin-top:14px;border:1px solid #D8DFD9;background:#F5F7F3}.result-label{font-family:var(--mono);font-size:10px;letter-spacing:.7px;color:var(--teal);margin-bottom:5px}.result-value{font-family:var(--mono);font-size:25px;color:#315F56}.result-meta{margin-left:auto;text-align:right;color:var(--muted);font-family:var(--mono);font-size:10px;line-height:1.8}.error-box{border-color:#E8D4CC;background:#FBF4F1}.error-box .result-label,.error-box .result-value{color:var(--rust)}
 .action-button{font-family:var(--mono);font-size:11px;padding:10px 17px;border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer;transition:background .15s}.action-button:hover{background:#182B3C}.footer{border-top:1px solid var(--line);padding:15px clamp(18px,4vw,58px);display:flex;justify-content:space-between;gap:15px;color:var(--muted);font-family:var(--mono);font-size:10px}.footer span:last-child{text-align:right}.fred-status{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5}.source-link{color:var(--navy)}
-@media(max-width:800px){.page-intro{align-items:flex-start;flex-direction:column}.page-code{text-align:left}.overview-heading{min-width:100%;border-bottom:1px solid #D5D5CC}.overview-stat{min-width:33%;border-left:0;border-top:1px solid #D5D5CC}.overview-stat:nth-child(odd){border-left:1px solid #D5D5CC}.control-grid,.control-grid.three{grid-template-columns:1fr}.section-body{padding:13px}.section-head{padding:0 13px}.top-meta{display:none}.footer{flex-direction:column}.footer span:last-child{text-align:left}}
+@media(max-width:800px){.page-intro{align-items:flex-start;flex-direction:column}.page-code{text-align:left}.market-tabs .tab{padding:12px 13px;font-size:10px}.market-intro{align-items:flex-start;flex-direction:column}.overview-heading{min-width:100%;border-bottom:1px solid #D5D5CC}.overview-stat{min-width:33%;border-left:0;border-top:1px solid #D5D5CC}.overview-stat:nth-child(odd){border-left:1px solid #D5D5CC}.control-grid,.control-grid.three{grid-template-columns:1fr}.section-body{padding:13px}.section-head{padding:0 13px}.top-meta{display:none}.footer{flex-direction:column}.footer span:last-child{text-align:left}}
 ._dash-loading{visibility:hidden}.dash-spinner{display:none!important}
 </style></head><body><div class="shell"><nav class="topbar"><div class="brand"><span class="brand-name">bondora</span><span class="brand-divider"></span><span class="brand-sub">Fixed Income Research</span></div><div class="top-meta">MARKET DATA / CURVE ANALYTICS</div></nav>{%app_entry%}<footer class="footer"><span>Bondora · Independent fixed-income analytics</span><span>SBS · Ministerio de Economía y Finanzas / FRED · Federal Reserve Bank of St. Louis</span></footer></div><footer>{%config%}{%scripts%}{%renderer%}</footer></body></html>'''
 
 app.layout = html.Div(className="main", children=[
     html.Div(className="page-intro", children=[
-        html.Div(children=[html.Div("MARKETS / CURVES / HISTORICAL DATA", className="eyebrow"),
+        html.Div(children=[
+            html.Div("MARKETS / CURVES / HISTORICAL DATA", className="eyebrow"),
             html.H1("Sovereign yield curves", className="page-title"),
-            html.Div("Análisis de rendimientos, spreads y series históricas para renta fija local e internacional.", className="page-description")]),
-        html.Div([html.Div("RESEARCH NOTE  /  01"), html.Div("PEN  ·  USD"), html.Div("DAILY OBSERVATIONS")], className="page-code")
-    ]),
-    build_overview(),
-
-    html.Div(className="section", children=[
-        section_label("01", "Perú · Curva soberana", "SBS / PEN"),
-        html.Div(className="section-body", children=[
-            html.Div(className="control-grid", children=[
-                html.Div([html.Label("Fechas de comparación", className="field-label"), dcc.Dropdown(id="dropdown-fechas", options=fecha_options, value=default_fecha, multi=True, placeholder="Selecciona una o más fechas", className="dash-dropdown")]),
-                html.Div([html.Label("Variable del eje horizontal", className="field-label"), dcc.RadioItems(id="radio-xaxis", options=[{"label":"Duración","value":"duración"},{"label":"Madurez","value":"maturity"}], value="duración", className="radio-wrap")])
-            ]),
-            html.Div("Selecciona varias fechas para comparar desplazamientos y cambios de pendiente en la curva.", className="field-note")
+            html.Div(
+                "Análisis de rendimientos, spreads y series históricas para renta fija local e internacional.",
+                className="page-description",
+            ),
         ]),
-        dcc.Graph(id="graph-curve", config={"displayModeBar":True,"modeBarButtonsToRemove":["select2d","lasso2d","autoScale2d"],"displaylogo":False})
+        html.Div(
+            [html.Div("RESEARCH NOTE  /  01"), html.Div("PEN  ·  USD"), html.Div("DAILY OBSERVATIONS")],
+            className="page-code",
+        ),
     ]),
-
-    html.Div(className="section", children=[section_label("02", "Cambio entre curvas", "BPS"), dcc.Graph(id="graph-spread", config={"displayModeBar":False,"displaylogo":False})]),
-
-    html.Div(className="section", children=[
-        section_label("03", "Consulta de yield interpolada", "LINEAR INTERPOLATION"),
-        html.Div(className="section-body", children=[
-            html.Div(className="control-grid three", children=[
-                html.Div([html.Label("Fecha de la curva", className="field-label"), dcc.Dropdown(id="interp-fecha", options=fecha_options, value=default_fecha[0] if default_fecha else None, placeholder="Selecciona fecha", clearable=False, className="dash-dropdown")]),
-                html.Div([html.Label("Eje de interpolación", className="field-label"), dcc.Dropdown(id="interp-xaxis", options=[{"label":"Duración (años)","value":"duración"},{"label":"Madurez (años)","value":"maturity"}], value="duración", clearable=False, className="dash-dropdown")]),
-                html.Div([html.Label("Plazo objetivo (años)", className="field-label"), dcc.Input(id="interp-valor", type="number", placeholder="Ej. 5.5", min=0, step=0.01, className="field-input", style={"width":"100%","padding":"10px","border":"1px solid #DCDCD3","fontFamily":"IBM Plex Mono","fontSize":"12px"})]),
-            ]),
-            html.Div(style={"marginTop":"13px"}, children=[html.Button("Calcular yield", id="interp-btn", n_clicks=0, className="action-button")]),
-            html.Div(id="interp-result")
-        ])
-    ]),
-
-    html.Div(className="section", children=[
-        section_label("04", "Histórico por instrumento", "SBS / ISIN"),
-        html.Div(className="section-body", children=[
-            html.Div(className="control-grid", children=[
-                html.Div([html.Label("Instrumento", className="field-label"), dcc.Dropdown(id="dropdown-busqueda", options=busqueda_options, value=default_busqueda, placeholder="Busca por ISIN o nemónico", className="dash-dropdown")]),
-                html.Div([html.Label("Métrica", className="field-label"), dcc.RadioItems(id="radio-metric", options=[{"label":"TIR (%)","value":"tir %"},{"label":"Precio limpio (%)","value":"p. limpio (%)"}], value="tir %", className="radio-wrap")])
-            ])
-        ]),
-        dcc.Graph(id="graph-historical", config={"displayModeBar":True,"modeBarButtonsToRemove":["select2d","lasso2d"],"displaylogo":False})
-    ]),
-
-    html.Div(className="section", children=[
-        section_label("05", "US Treasury · Curva del Tesoro", "FRED / USD"),
-        html.Div(className="section-body", children=[
-            html.Div(className="control-grid", children=[
-                html.Div([html.Label("Fechas de comparación", className="field-label"), dcc.Dropdown(id="treasury-dates", options=treasury_date_options, value=treasury_default_date, multi=True, placeholder="Selecciona fechas", className="dash-dropdown")]),
-                html.Div([html.Label("Plazo para la serie histórica", className="field-label"), dcc.Dropdown(id="treasury-tenor", options=[{"label":k,"value":k} for k in TREASURY_TENORS], value="US 10Y", clearable=False, className="dash-dropdown")])
-            ]),
-            html.Div(fred_status, className="fred-status", id="fred-status")
-        ]),
-        html.Div(className="section-body", children=[html.Div("CURVE SNAPSHOT", className="field-label"), dcc.Graph(id="graph-treasury-curve", config={"displayModeBar":False,"displaylogo":False})]),
-        html.Div(className="section-body", style={"borderTop":"1px solid #E9E8E1"}, children=[html.Div("HISTORICAL YIELD", className="field-label"), dcc.Graph(id="graph-treasury-history", config={"displayModeBar":False,"displaylogo":False})])
-    ])
+    dcc.Tabs(
+        id="market-tabs",
+        value="pen",
+        className="market-tabs",
+        children=[
+            dcc.Tab(
+                label="Soberanos PEN",
+                value="pen",
+                className="tab",
+                selected_className="tab--selected",
+                children=html.Div(className="market-panel", children=[
+                    build_overview(),
+                    html.Div(className="market-intro", children=[
+                        html.H2("Curva soberana en soles", className="market-heading"),
+                        html.Div("PERÚ  /  SBS", className="market-subheading"),
+                    ]),
+                    html.Div(className="section", children=[
+                        section_label("01", "Curva soberana", "SBS / PEN"),
+                        html.Div(className="section-body", children=[
+                            html.Div(className="control-grid", children=[
+                                html.Div([html.Label("Fechas de comparación", className="field-label"), dcc.Dropdown(id="dropdown-fechas", options=fecha_options, value=default_fecha, multi=True, placeholder="Selecciona una o más fechas", className="dash-dropdown")]),
+                                html.Div([html.Label("Variable del eje horizontal", className="field-label"), dcc.RadioItems(id="radio-xaxis", options=[{"label":"Duración","value":"duración"},{"label":"Madurez","value":"maturity"}], value="duración", className="radio-wrap")]),
+                            ]),
+                            html.Div("Selecciona varias fechas para comparar desplazamientos y cambios de pendiente en la curva.", className="field-note"),
+                        ]),
+                        dcc.Graph(id="graph-curve", config={"displayModeBar":True,"modeBarButtonsToRemove":["select2d","lasso2d","autoScale2d"],"displaylogo":False}),
+                    ]),
+                    html.Div(className="section", children=[
+                        section_label("02", "Cambio entre curvas", "BPS"),
+                        dcc.Graph(id="graph-spread", config={"displayModeBar":False,"displaylogo":False}),
+                    ]),
+                    html.Div(className="section", children=[
+                        section_label("03", "Consulta de yield interpolada", "LINEAR INTERPOLATION"),
+                        html.Div(className="section-body", children=[
+                            html.Div(className="control-grid three", children=[
+                                html.Div([html.Label("Fecha de la curva", className="field-label"), dcc.Dropdown(id="interp-fecha", options=fecha_options, value=default_fecha[0] if default_fecha else None, placeholder="Selecciona fecha", clearable=False, className="dash-dropdown")]),
+                                html.Div([html.Label("Eje de interpolación", className="field-label"), dcc.Dropdown(id="interp-xaxis", options=[{"label":"Duración (años)","value":"duración"},{"label":"Madurez (años)","value":"maturity"}], value="duración", clearable=False, className="dash-dropdown")]),
+                                html.Div([html.Label("Plazo objetivo (años)", className="field-label"), dcc.Input(id="interp-valor", type="number", placeholder="Ej. 5.5", min=0, step=0.01, className="field-input", style={"width":"100%","padding":"10px","border":"1px solid #DCDCD3","fontFamily":"IBM Plex Mono","fontSize":"12px"})]),
+                            ]),
+                            html.Div(style={"marginTop":"13px"}, children=[html.Button("Calcular yield", id="interp-btn", n_clicks=0, className="action-button")]),
+                            html.Div(id="interp-result"),
+                        ]),
+                    ]),
+                    html.Div(className="section", children=[
+                        section_label("04", "Histórico por instrumento", "SBS / ISIN"),
+                        html.Div(className="section-body", children=[
+                            html.Div(className="control-grid", children=[
+                                html.Div([html.Label("Instrumento", className="field-label"), dcc.Dropdown(id="dropdown-busqueda", options=busqueda_options, value=default_busqueda, placeholder="Busca por ISIN o nemónico", className="dash-dropdown")]),
+                                html.Div([html.Label("Métrica", className="field-label"), dcc.RadioItems(id="radio-metric", options=[{"label":"TIR (%)","value":"tir %"},{"label":"Precio limpio (%)","value":"p. limpio (%)"}], value="tir %", className="radio-wrap")]),
+                            ]),
+                        ]),
+                        dcc.Graph(id="graph-historical", config={"displayModeBar":True,"modeBarButtonsToRemove":["select2d","lasso2d"],"displaylogo":False}),
+                    ]),
+                ]),
+            ),
+            dcc.Tab(
+                label="US Treasury",
+                value="treasury",
+                className="tab",
+                selected_className="tab--selected",
+                children=html.Div(className="market-panel", children=[
+                    html.Div(className="market-intro", children=[
+                        html.H2("US Treasury yield curve", className="market-heading"),
+                        html.Div("UNITED STATES  /  FRED", className="market-subheading"),
+                    ]),
+                    html.Div(className="section", children=[
+                        section_label("01", "Curva del Tesoro", "FRED / USD"),
+                        html.Div(className="section-body", children=[
+                            html.Div(className="control-grid", children=[
+                                html.Div([html.Label("Fechas de comparación", className="field-label"), dcc.Dropdown(id="treasury-dates", options=treasury_date_options, value=treasury_default_date, multi=True, placeholder="Selecciona fechas", className="dash-dropdown")]),
+                                html.Div([html.Label("Plazo para la serie histórica", className="field-label"), dcc.Dropdown(id="treasury-tenor", options=[{"label":k,"value":k} for k in TREASURY_TENORS], value="US 10Y", clearable=False, className="dash-dropdown")]),
+                            ]),
+                            html.Div(fred_status, className="fred-status", id="fred-status"),
+                        ]),
+                        html.Div(className="section-body", children=[html.Div("CURVE SNAPSHOT", className="field-label"), dcc.Graph(id="graph-treasury-curve", config={"displayModeBar":False,"displaylogo":False})]),
+                        html.Div(className="section-body", style={"borderTop":"1px solid #E9E8E1"}, children=[html.Div("HISTORICAL YIELD", className="field-label"), dcc.Graph(id="graph-treasury-history", config={"displayModeBar":False,"displaylogo":False})]),
+                    ]),
+                ]),
+            ),
+        ],
+    ),
 ])
 
 # -----------------------------------------------------------------------------
@@ -496,3 +511,4 @@ def update_treasury_history(tenor, selected_dates):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "10000"))
     app.run(debug=False, host="0.0.0.0", port=port)
+
