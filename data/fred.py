@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -214,7 +214,26 @@ def load_treasury() -> tuple[pd.DataFrame, str]:
             "Configura FRED_API_KEY para descargar datos de FRED",
         )
 
+    # Reutilizar la caché durante 12 horas para evitar
+    # descargas innecesarias al reiniciar la aplicación.
+    if not cached.empty and FRED_CACHE_FILE.exists():
+        cache_age = (
+            datetime.now()
+            - datetime.fromtimestamp(FRED_CACHE_FILE.stat().st_mtime)
+        )
+
+        if cache_age < timedelta(hours=12):
+            return (
+                cached,
+                "FRED · caché local "
+                f"(guardada {datetime.fromtimestamp(FRED_CACHE_FILE.stat().st_mtime).strftime('%d/%m/%Y %H:%M')})",
+            )
+
     downloaded, api_errors = _download_treasury_data()
+
+
+
+
 
     if downloaded.empty:
         if not cached.empty:

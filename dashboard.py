@@ -5,6 +5,11 @@ Datos US Treasury: FRED API (variable de entorno FRED_API_KEY)
 
 Dependencias: pip install dash pandas numpy plotly requests
 """
+
+
+
+
+
 from __future__ import annotations
 
 import os
