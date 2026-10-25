@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -43,6 +44,51 @@ TENOR_YEARS = {
     "US 20Y": 20,
     "US 30Y": 30,
 }
+
+def _download_official_treasury_data() -> pd.DataFrame:
+    """Descarga la curva diaria oficial del Tesoro de EE. UU."""
+
+    year = datetime.now().year
+
+    url = (
+        "https://home.treasury.gov/resource-center/"
+        "data-chart-center/interest-rates/"
+        f"daily-treasury-rates.csv/{year}/all"
+        f"?type=daily_treasury_yield_curve"
+        f"&field_tdr_date_value={year}&page&_format=csv"
+    )
+
+    response = requests.get(url, timeout=(10, 45))
+    response.raise_for_status()
+
+    data = pd.read_csv(io.BytesIO(response.content))
+
+    column_mapping = {
+        "Date": "date",
+        "1 Yr": "US 1Y",
+        "2 Yr": "US 2Y",
+        "3 Yr": "US 3Y",
+        "5 Yr": "US 5Y",
+        "7 Yr": "US 7Y",
+        "10 Yr": "US 10Y",
+        "20 Yr": "US 20Y",
+        "30 Yr": "US 30Y",
+    }
+
+    data = data.rename(columns=column_mapping)
+
+    required_columns = ["date", *FRED_SERIES.keys()]
+    missing_columns = [
+        column for column in required_columns
+        if column not in data.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            f"Faltan columnas en el CSV oficial: {missing_columns}"
+        )
+
+    return _clean_treasury_data(data[required_columns])
 
 
 def _empty_treasury_data() -> pd.DataFrame:
@@ -97,7 +143,7 @@ def load_fred_series(
         "sort_order": "asc",
     }
 
-    response = requests.get(url, params=params, timeout=25)
+    response = requests.get(url, params=params, timeout=(5, 15))
     response.raise_for_status()
 
     payload = response.json()
@@ -196,78 +242,118 @@ def _merge_treasury_data(
 
 
 def load_treasury() -> tuple[pd.DataFrame, str]:
-    """Carga Treasury desde FRED y conserva una caché histórica válida."""
+    """Carga Treasury desde FRED y complementa con la curva oficial."""
 
     cached = _empty_treasury_data()
 
-    try:
-        cached = _load_treasury_cache()
-    except Exception as exc:
-        print(f"No se pudo cargar la caché FRED: {exc}")
+    if FRED_CACHE_FILE.exists():
+        try:
+            cached = _load_treasury_cache()
+        except Exception as exc:
+            print(f"No se pudo cargar la caché FRED: {exc}")
 
-    if not FRED_API_KEY:
-        if not cached.empty:
-            return cached, "FRED · datos de caché local"
+    # Comprobar la antigüedad de la caché antes de descargar
+    # datos oficiales, para no alterar el control de 12 horas.
+    cache_age = None
 
-        return (
-            _empty_treasury_data(),
-            "Configura FRED_API_KEY para descargar datos de FRED",
-        )
-
-    # Reutilizar la caché durante 12 horas para evitar
-    # descargas innecesarias al reiniciar la aplicación.
     if not cached.empty and FRED_CACHE_FILE.exists():
         cache_age = (
             datetime.now()
             - datetime.fromtimestamp(FRED_CACHE_FILE.stat().st_mtime)
         )
 
-        if cache_age < timedelta(hours=12):
-            return (
-                cached,
+    # Consultar la curva diaria oficial del Tesoro de EE. UU.
+    official = _empty_treasury_data()
+
+    try:
+        official = _download_official_treasury_data()
+    except Exception as exc:
+        print(f"No se pudo descargar la curva oficial del Tesoro: {exc}")
+
+    def save_cache(data: pd.DataFrame) -> None:
+        try:
+            FRED_CACHE_FILE.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            data.to_pickle(FRED_CACHE_FILE)
+        except Exception as exc:
+            print(f"No se pudo guardar la caché Treasury: {exc}")
+
+    # Si la caché es reciente, conservarla y complementarla
+    # con los datos oficiales sin reiniciar su antigüedad.
+    if (
+        not cached.empty
+        and cache_age is not None
+        and cache_age < timedelta(hours=12)
+    ):
+        combined = _merge_treasury_data(cached, official)
+
+        if not official.empty:
+            latest_date = pd.to_datetime(official["date"]).max()
+            status = (
+                "Tesoro oficial + caché histórica "
+                f"· último dato {latest_date.strftime('%d/%m/%Y')}"
+            )
+        else:
+            status = (
                 "FRED · caché local "
-                f"(guardada {datetime.fromtimestamp(FRED_CACHE_FILE.stat().st_mtime).strftime('%d/%m/%Y %H:%M')})",
+                "(no se pudo consultar el Tesoro oficial)"
             )
 
-    downloaded, api_errors = _download_treasury_data()
+        return combined, status
 
-
-
-
+    # Actualizar FRED cuando la caché ya no es reciente.
+    if FRED_API_KEY:
+        downloaded, api_errors = _download_treasury_data()
+    else:
+        downloaded, api_errors = _empty_treasury_data(), []
 
     if downloaded.empty:
-        if not cached.empty:
-            return (
-                cached,
-                "FRED · caché local; no se pudo actualizar",
-            )
+        combined = _merge_treasury_data(cached, official)
+
+        if not combined.empty:
+            if not cached.empty:
+                status = "Tesoro oficial + caché histórica"
+            else:
+                status = "Tesoro oficial · sin histórico de FRED"
+
+            if not official.empty:
+                latest_date = pd.to_datetime(official["date"]).max()
+                status += (
+                    f" · último dato {latest_date.strftime('%d/%m/%Y')}"
+                )
+
+            save_cache(combined)
+            return combined, status
 
         error_detail = "; ".join(api_errors[:2])
 
         return (
             _empty_treasury_data(),
-            "No se pudieron descargar los datos de FRED"
+            "No se pudieron obtener datos de Treasury"
             + (f": {error_detail}" if error_detail else ""),
         )
 
-    # Combinar antes de guardar evita perder datos históricos
-    # de series que hayan fallado durante la descarga.
+    # Conservar el histórico de la caché y FRED.
     combined = _merge_treasury_data(cached, downloaded)
 
-    try:
-        FRED_CACHE_FILE.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-        combined.to_pickle(FRED_CACHE_FILE)
+    # La fuente oficial complementa y prevalece sobre FRED
+    # en las fechas para las que proporciona observaciones.
+    combined = _merge_treasury_data(combined, official)
 
-    except Exception as exc:
-        print(f"No se pudo guardar la caché FRED: {exc}")
+    save_cache(combined)
 
     status = (
-        "FRED · actualización consultada "
+        "FRED + Tesoro oficial · actualización consultada "
         f"{datetime.now().strftime('%d/%m/%Y %H:%M')}"
     )
+
+    if not official.empty:
+        latest_date = pd.to_datetime(official["date"]).max()
+        status += (
+            f" · último dato oficial {latest_date.strftime('%d/%m/%Y')}"
+        )
 
     if api_errors:
         status += (
